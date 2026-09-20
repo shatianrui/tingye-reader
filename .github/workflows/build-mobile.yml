@@ -25,6 +25,7 @@ jobs:
   android:
     if: ${{ inputs.build_android }}
     runs-on: windows-latest
+    timeout-minutes: 60
     defaults:
       run:
         working-directory: apps/android
@@ -50,7 +51,11 @@ jobs:
           Add-Content -Path $env:GITHUB_ENV -Value "ANDROID_SDKMANAGER=$($sdkmanager.FullName)"
       - name: Install required SDK packages
         shell: pwsh
-        run: '& $env:ANDROID_SDKMANAGER "build-tools;36.0.0" "platform-tools"'
+        timeout-minutes: 5
+        # `echo y` guards against an unexpected license re-prompt blocking forever
+        # with no stdin; every package this project needs is already accepted on
+        # the runner image, so this is a no-op in the common case.
+        run: echo y | & $env:ANDROID_SDKMANAGER "build-tools;36.0.0" "platform-tools"
       - name: Point npm at the public registry
         shell: pwsh
         # package-lock.json pins package hosts at a mirror (registry.npmmirror.com)
@@ -59,8 +64,11 @@ jobs:
         # here rather than passing a registry flag that npm would ignore.
         run: (Get-Content package-lock.json) -replace 'registry\.npmmirror\.com','registry.npmjs.org' | Set-Content package-lock.json
       - run: npm ci
+        timeout-minutes: 10
       - run: npm run typecheck
+        timeout-minutes: 10
       - run: npm test
+        timeout-minutes: 10
       - name: Decode signing keystore
         shell: pwsh
         env:
@@ -78,6 +86,7 @@ jobs:
           ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: npm run build:apk
+        timeout-minutes: 35
       - name: Checksum
         shell: pwsh
         working-directory: apps/android/releases
@@ -91,6 +100,7 @@ jobs:
   ios:
     if: ${{ inputs.build_ios }}
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     defaults:
       run:
         working-directory: apps/ios
