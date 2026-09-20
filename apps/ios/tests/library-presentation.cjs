@@ -1,0 +1,13 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),ts=require('typescript');
+const code=ts.transpileModule(fs.readFileSync('src/tingye/library-ui.tsx','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX}}).outputText;
+const mod={exports:{}};vm.runInNewContext(code,{module:mod,exports:mod.exports,require:id=>id==='react'?{createContext:()=>({})}:{},console});
+const {presentLibrary,bookProgress,positionLabel}=mod.exports;
+const old={id:'private-old',title:'我的旧书',author:'作者',format:'EPUB',chapters:[],chapter:8,chapterCount:20,position:2,updatedAt:10,local:true};
+const recent={...old,id:'private-new',title:'我的新书',updatedAt:20,coverUri:'file:///books/private-new.cover.png'};
+const original=[old,recent];const ui=presentLibrary(original);
+assert.equal(ui.length,2);assert.equal(ui[0].id,recent.id);assert.equal(ui[0].title,recent.title);assert.equal(original[0].id,old.id);
+assert.equal(ui[0].category,'EPUB');assert.match(ui[0].intro,/离线/);assert.equal(ui[0].rating,0);
+assert.equal(ui[0].coverUri,recent.coverUri);assert.equal(ui[1].coverUri,undefined);
+assert.equal(bookProgress(old),0.4);assert.equal(positionLabel(old),'第 9 章');assert.equal(bookProgress({...old,chapterCount:undefined}),0);
+assert.equal(presentLibrary([]).length,0);
+console.log('PASS: Material screens receive actual account book IDs, titles, formats and progress; order by recent activity without changing library; no injected demo catalogue.');

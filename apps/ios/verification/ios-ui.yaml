@@ -1,0 +1,48 @@
+appId: com.shatianrui.wereader
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible: ".*山间来信.*"
+    timeout: 90000
+- takeScreenshot: 01-native-shelf
+- tapOn:
+    text: ".*山间来信.*"
+    index: 0
+- extendedWaitUntil:
+    visible: "显示功能栏"
+    timeout: 45000
+- takeScreenshot: 02-native-original-reader
+- assertNotVisible: "重试原书排版"
+- tapOn: "显示功能栏"
+- assertVisible: "字体 / 排版"
+- takeScreenshot: 03-native-reader-menu
+- tapOn: "字体 / 排版"
+- assertVisible: "阅读与听书设置"
+- assertVisible: "原书图文"
+- takeScreenshot: 04-native-reading-settings
+- scrollUntilVisible:
+    element: "霞鹜文楷"
+    direction: DOWN
+- takeScreenshot: 04b-native-font-settings
+- scrollUntilVisible:
+    element: "MiniMax"
+    direction: DOWN
+- takeScreenshot: 05-native-voice-settings
+- assertVisible: "GLM"
+- assertVisible: "本地语音"
+- tapOn: "本地语音"
+- tapOn: "完成"
+- tapOn: "语速"
+- assertVisible: "朗读语速"
+- tapOn: "1.25×"
+- takeScreenshot: 05b-native-speed-settings
+- tapOn: "完成"
+- tapOn: "目录"
+- takeScreenshot: 05c-native-table-of-contents
+- tapOn:
+    text: ".*第 2 章.*"
+- takeScreenshot: 05d-native-illustration-page
+- tapOn: "返回书架"
+- tapOn: "我"
+- takeScreenshot: 06-native-profile

@@ -1,0 +1,53 @@
+// @ts-nocheck -- Executed inside the isolated Android WebView, not in Hermes.
+import {installDesktopInput} from './desktop-input';
+export function originalRuntime(){
+ const init=window.READER_INIT,content=document.getElementById('ty-reader-book'),track=document.getElementById('ty-reader-track'),settings=document.getElementById('ty-reader-settings');
+ let nodes=[],starts=[0],page=0,count=1,pitch=1,config=init.config,ready=false,timer,anchor=init.offset||0,lastPageMessage='';
+ const send=(type,data={})=>window.ReactNativeWebView?.postMessage(JSON.stringify({type,...data}));
+ const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+ const rectAt=(node,index)=>{const range=document.createRange();range.setStart(node,clamp(index,0,node.length));range.setEnd(node,clamp(index+1,0,node.length));return range.getBoundingClientRect();};
+ const pageAt=(node,index)=>clamp(Math.floor((rectAt(node,index).left-track.getBoundingClientRect().left+page*pitch+.5)/pitch),0,count-1);
+ function collect(){nodes=Array.from(content.querySelectorAll('[data-pos]')).flatMap(span=>span.firstChild?.nodeType===3?[{node:span.firstChild,start:Number(span.dataset.pos)}]:[]);}
+ function pageChanged(manual=false){if(manual)anchor=starts[page]||0;const next={index:page,count,start:starts[page]||0,end:starts[page+1]??init.length,anchor,manual},signature=JSON.stringify(next);if(signature!==lastPageMessage){lastPageMessage=signature;send('page',next);}}
+ function show(index,manual=false){page=clamp(index,0,count-1);if(!init.fixed)content.style.transform=`translateX(${-page*pitch}px)`;pageChanged(manual);}
+ function seek(offset){anchor=offset;const found=nodes.find(n=>n.start<=offset&&n.start+n.node.length>offset)||nodes.find(n=>n.start>=offset)||nodes.at(-1);show(found&&!init.fixed?pageAt(found.node,offset-found.start):0);}
+ function layout(){clearTimeout(timer);timer=undefined;try{
+  if(track.clientWidth<1||track.clientHeight<1)return;
+  const saved=ready?anchor:(init.offset||0),savedPage=page,wasImagePage=ready&&((starts[page+1]??init.length)===starts[page]),w=track.clientWidth,h=track.clientHeight;
+  const columns=!init.fixed&&config.spread&&w>=620?2:1,gap=40,columnWidth=(w-gap*(columns-1))/columns;pitch=w+gap;
+  content.dataset.columns=String(columns);
+  document.documentElement.style.setProperty('--column-width',columnWidth+'px');
+  document.documentElement.style.setProperty('--page-height',(init.fixed?.height||h)+'px');
+  if(init.fixed){const scale=Math.min(w/init.fixed.width,h/init.fixed.height);Object.assign(content.style,{width:init.fixed.width+'px',height:init.fixed.height+'px',columnWidth:'auto',transform:`scale(${scale})`,transformOrigin:'top left',marginLeft:Math.max(0,(w-init.fixed.width*scale)/2)+'px'});count=1;starts=[0];}
+  else{content.style.transform='none';page=0;Object.assign(content.style,{width:w+'px',height:h+'px',columnWidth:columnWidth+'px',columnCount:String(columns),columnGap:gap+'px',columnRule:columns===2?'1px solid '+config.colors.line:'none',columnFill:'auto',marginLeft:'0'});document.documentElement.style.setProperty('--page-height',h+'px');
+   count=Math.max(1,Math.ceil((content.scrollWidth+40-1)/pitch));starts=Array(count).fill(null);starts[0]=0;
+   for(const entry of nodes){const {node,start}=entry;if(!node.length)continue;const first=pageAt(node,0),last=pageAt(node,node.length-1);
+    for(let p=first;p<=last;p++){let lo=0,hi=node.length;while(lo<hi){const mid=(lo+hi)>>>1;if(pageAt(node,mid)<p)lo=mid+1;else hi=mid;}if(lo<node.length&&(starts[p]===null||start+lo<starts[p]))starts[p]=start+lo;}
+   }
+   for(let p=count-1;p>=0;p--)if(starts[p]===null)starts[p]=starts[p+1]??init.length;
+  }
+  ready=true;if(wasImagePage||!nodes.length)show(savedPage);else seek(saved);send('ready');
+ }catch(e){send('error',{message:'排版暂时失败，已显示连续正文。'});Object.assign(content.style,{transform:'none',columnWidth:'auto',height:'auto',width:'100%'});track.style.overflow='auto';count=1;starts=[0];pageChanged();}}
+ function schedule(){clearTimeout(timer);timer=setTimeout(layout,100);}
+ function apply(value){config=value;const t=value.typography,original=value.original&&init.original,family=t.font==='kai'?'ReaderKai':t.font==='serif'?'ReaderSerif':'sans-serif';
+  document.body.style.background=value.colors.surface;document.body.style.color=value.colors.text;
+  settings.textContent=`:root{--page-height:${track.clientHeight}px}html,body{margin:0!important;padding:0!important;width:100%!important;height:100%!important;overflow:hidden!important;background:${value.colors.surface}!important}#ty-reader-track{position:absolute;inset:0;overflow:hidden}#ty-reader-book{font-size:${value.fontSize}px;line-height:${t.lineHeight};font-family:${family};color:${value.colors.text};box-sizing:border-box;overflow-wrap:break-word}#ty-reader-book img,#ty-reader-book svg{max-width:${init.fixed?'100%':'min(100%,var(--column-width))'};max-height:${init.fixed?'var(--page-height)':'max(60px,calc(var(--page-height) - 4em))'};object-fit:contain;break-inside:avoid}#ty-reader-book table{max-width:100%;border-collapse:collapse}#ty-reader-book pre{white-space:pre-wrap;overflow-wrap:anywhere}#ty-reader-book h1,#ty-reader-book h2,#ty-reader-book h3{break-after:avoid}#ty-reader-book p{orphans:2;widows:2}#ty-reader-book [data-pos]{cursor:text}#ty-reader-book::highlight(reading){background:${value.colors.highlight}}::highlight(reading){background:${value.colors.highlight};color:${value.colors.text}}.reading-active{background:${value.colors.highlight}}.missing-image{font-size:.8em;color:${value.colors.muted}}${!original?`#ty-reader-book,#ty-reader-book p,#ty-reader-book div,#ty-reader-book span{font-family:${family}!important}#ty-reader-book p{font-size:${value.fontSize}px!important;line-height:${t.lineHeight}!important;margin-block:0 ${t.paragraphGap}em!important;text-align:${t.alignment}!important;text-indent:${t.indent?'2em':'0'}!important}#ty-reader-book{line-height:${t.lineHeight}!important}`:''}${value.colors.dark?'#ty-reader-book *:not(img):not(svg):not(svg *){color:inherit!important;background-color:transparent!important}':''}`;
+  schedule();
+ }
+ function highlight(start,end){const selected=[];for(const {node,start:base} of nodes){if(base>=end||base+node.length<=start)continue;const r=document.createRange();r.setStart(node,Math.max(0,start-base));r.setEnd(node,Math.min(node.length,end-base));selected.push(r);}
+  if(window.Highlight&&CSS.highlights)CSS.highlights.set('reading',new Highlight(...selected));else{content.querySelectorAll('.reading-active').forEach(n=>n.classList.remove('reading-active'));selected.forEach(r=>r.startContainer.parentElement?.classList.add('reading-active'));}}
+ function command(c){if(c.type==='config')apply(c.value);if(c.type==='seek'){if(timer)layout();seek(c.offset);}if(c.type==='highlight')highlight(c.start,c.end);if(c.type==='turn'){if(timer)layout();const next=page+c.delta;if(next<0||next>=count)send('boundary',{delta:c.delta});else show(next,true);}}
+ window.readerCommand=command;
+ installDesktopInput(delta=>command({type:'turn',delta}),send);
+ const receive=e=>{try{command(JSON.parse(e.data));}catch{}};document.addEventListener('message',receive);window.addEventListener('message',receive);
+ let touch=null,moved=false;
+ document.addEventListener('touchstart',e=>{touch={x:e.touches[0].clientX,y:e.touches[0].clientY,time:Date.now()};moved=false;},{passive:true});
+ document.addEventListener('touchend',e=>{if(!touch)return;const dx=e.changedTouches[0].clientX-touch.x,dy=e.changedTouches[0].clientY-touch.y;moved=Math.abs(dx)>15||Math.abs(dy)>15;if(Math.abs(dx)>48&&Math.abs(dx)>Math.abs(dy)*1.4){e.preventDefault();command({type:'turn',delta:dx<0?1:-1});}touch=null;});
+ document.addEventListener('click',e=>{const link=e.target.closest('a');if(link){e.preventDefault();const href=link.getAttribute('href');if(href?.startsWith('#')){const target=document.getElementById(decodeURIComponent(href.slice(1))),span=target?.matches('[data-pos]')?target:target?.querySelector('[data-pos]');if(span)seek(Number(span.dataset.pos));}else if(href)send('link',{href});return;}if(!moved&&!String(window.getSelection()))send('toggle');moved=false;});
+ document.addEventListener('contextmenu',e=>{const caret=document.caretRangeFromPoint?.(e.clientX,e.clientY),span=caret?.startContainer.parentElement?.closest('[data-pos]')||e.target.closest('[data-pos]');if(span)send('select',{offset:Number(span.dataset.pos)+(caret?.startContainer===span.firstChild?caret.startOffset:0)});});
+ window.addEventListener('resize',schedule);window.addEventListener('pageshow',schedule);document.addEventListener('visibilitychange',()=>{if(!document.hidden)schedule();});
+ collect();apply(config);layout();
+ document.fonts?.ready.then(schedule);for(const image of content.querySelectorAll('img')){image.addEventListener('load',schedule);image.addEventListener('error',schedule);}
+ // Late font/image metrics are reapplied without discarding the visible content.
+ setTimeout(schedule,1500);setTimeout(schedule,5000);
+}

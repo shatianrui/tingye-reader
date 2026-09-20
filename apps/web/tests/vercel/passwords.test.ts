@@ -1,0 +1,7 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {username,password,hashPassword,verifyPassword,token,hash} from '../../lib/passwords';
+import {validateBook} from '../../lib/book-validation';
+test('Passwords are salted and reject incorrect credentials',async()=>{const a=await hashPassword('a-long-password'),b=await hashPassword('a-long-password');assert.notEqual(a,b);assert.equal(await verifyPassword('a-long-password',a),true);assert.equal(await verifyPassword('wrong-password',a),false);assert.equal(await verifyPassword('a-long-password','bad'),false);});
+test('Username normalization is deterministic and validation bounds input',()=>{assert.equal(username(' Reader_12 '),'reader_12');assert.throws(()=>username('ab'));assert.throws(()=>username('admin@example.com'));assert.throws(()=>password('short'));assert.throws(()=>password('x'.repeat(129)));assert.match(token(),/^[a-f0-9]{64}$/);assert.notEqual(hash(token()),hash(token()));});
+test('Book validation rejects malformed and oversized content, strips extra fields',()=>{const book={id:'12345678-1234-1234-1234-123456789abc',title:'书',author:'作者',format:'TXT',chapters:[{title:'第一章',text:'正文。'}],user_id:'another-user'};assert.equal('user_id' in validateBook(book),false);assert.throws(()=>validateBook({...book,chapters:[{title:'a',text:7}]}));assert.throws(()=>validateBook({...book,chapters:[{title:'a',text:'a'.repeat(4000001)}]}));});

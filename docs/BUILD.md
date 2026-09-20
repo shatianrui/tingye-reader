@@ -1,0 +1,58 @@
+# CLI 构建与部署
+
+## Android APK
+
+在 apps/android 工作。要求 Node.js 22、JDK 17、Android SDK（平台及 NDK 版本以 android/build.gradle、Gradle 配置为准）、PowerShell 7。android/ 是包含定制功能的正式原生工程，必须保留；不要执行覆盖它的 clean prebuild。
+
+设置 JAVA_HOME、ANDROID_HOME（或 ANDROID_SDK_ROOT）。签名使用原应用的私有 keystore，配置环境变量：
+
+- ANDROID_KEYSTORE_PATH：keystore 文件路径。
+- ANDROID_KEY_ALIAS：密钥别名。
+- ANDROID_STORE_PASSWORD、ANDROID_KEY_PASSWORD：对应密码。
+- ANDROID_BUILD_TOOLS_VERSION：可选，默认 36.0.0。
+- GRADLE_USER_HOME：可选，构建缓存位置。
+
+```powershell
+cd apps/android
+npm ci
+npm run typecheck
+npm test
+npm run build:apk
+```
+
+输出在 releases/，脚本对 APK 对齐并验证签名。必须使用旧版相同签名才能覆盖安装。仅需未签名产物时运行 `pwsh -File tools/build-local.ps1 -Unsigned`。调试 keystore 不入库，需要 debug 构建时自行创建标准 Android 调试 keystore。
+
+## iOS IPA
+
+在 apps/ios 工作。Windows 使用 EAS CLI 云构建；本地 Xcode 构建需要 macOS。原 EAS 项目关联保留，执行者需有项目权限。
+
+```powershell
+cd apps/ios
+npm ci
+npm run typecheck
+npm test
+npx eas-cli@24.6.0 login
+# 复制 credentials.example.json 为 credentials.json，填入实际证书路径和密码
+npm run build:ipa
+```
+
+preview 使用本地提供的设备签名配置，描述文件必须包含设备 UDID，并与证书、Bundle ID 相符。商店签名使用 `pwsh -File tools/build-device.ps1 -Profile production`。两种签名不能混用。CLI 等待构建并显示产物链接；使用 -NoWait 仅提交。
+
+保留 eas-build-post-install 钩子：它选择正式入口并应用 expo-audio 的 iOS 时钟修复。verification/index.tsx 仅用于模拟器样例。EAS 使用远端 build number 自动递增，以构建详情为准。TestFlight 使用 `npx eas-cli@24.6.0 submit --platform ios`，通过 CLI 配置 App Store Connect 凭据，私钥不入库。
+
+## 网站 / Vercel
+
+apps/web/.env.example 列出配置。数据库使用 Supabase PostgreSQL，书籍存储在私有 tingye-books 桶。首次部署检查 db/ 和 scripts/migrate.mjs，再执行 `npm run db:migrate`；邀请注册使用 `npm run invite:create`。迁移会修改数据库，先核对目标环境。
+
+```sh
+cd apps/web
+npm ci
+npm test
+npm run build
+```
+
+Vercel 项目 Root Directory 设置为 apps/web；将 .env.example 对应变量填入 Vercel 环境配置。也可在该目录使用 Vercel CLI link / deploy。此次导入未修改现有生产项目 Git 关联，也未触发部署。
+
+安装页依赖 public/releases 下的 APK / IPA。仓库只保留图标和展示截图，不包含安装包：部署前恢复对应版本安装文件，或将下载路由改为自己的持久制品存储，否则下载接口会缺少文件。不要用空的 releases 目录覆盖正在工作的生产下载站。每次发布核对版本、大小、SHA-256 和签名，再更新发布常量。
+
+.env.local、credentials.json、私钥、用户书籍和数据库备份禁止入库。db/supabase-ca.json 是验证数据库 TLS 的公开 CA，不是服务端密钥。

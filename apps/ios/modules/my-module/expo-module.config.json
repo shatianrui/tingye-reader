@@ -1,0 +1,9 @@
+{
+  "platforms": ["apple"],
+  "apple": {
+    "modules": ["TingyeDocumentsModule"]
+  },
+  "android": {
+    "modules": ["expo.modules.tingyedocuments.TingyeDocumentsModule"]
+  }
+}

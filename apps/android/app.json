@@ -1,0 +1,64 @@
+{
+  "expo": {
+    "name": "微读",
+    "slug": "we_reader_rn",
+    "owner": "tianruisha",
+    "version": "1.6.4",
+    "orientation": "default",
+    "icon": "./assets/tingye-icon-v2.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.shatianrui.wereader",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "UIBackgroundModes": [
+          "audio"
+        ]
+      }
+    },
+    "android": {
+      "package": "com.shatianrui.wereader",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/tingye-icon-v2.png",
+        "backgroundColor": "#173C35"
+      },
+      "predictiveBackGestureEnabled": false,
+      "versionCode": 16005,
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_MEDIA_AUDIO",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-asset",
+      "expo-web-browser",
+      "expo-secure-store",
+      [
+        "expo-audio",
+        {
+          "enableBackgroundPlayback": true,
+          "recordAudioAndroid": false,
+          "microphonePermission": false
+        }
+      ],
+      "expo-image"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "4f1bd01f-edb3-4faf-b5a9-bea1dbff17a4"
+      }
+    },
+    "scheme": "wereader",
+    "platforms": [
+      "android"
+    ]
+  }
+}

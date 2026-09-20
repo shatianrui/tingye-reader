@@ -1,0 +1,5 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.shatianrui.wereader.densitytest">
+  <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="36"/>
+  <application android:label="Reader density verification"/>
+  <instrumentation android:name=".DensityProbe" android:targetPackage="com.shatianrui.wereader" android:label="Density and glyph bounds"/>
+</manifest>

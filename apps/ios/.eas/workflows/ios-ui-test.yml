@@ -1,0 +1,16 @@
+name: Verify existing iPhone React build
+on:
+  workflow_dispatch:
+    inputs:
+      build_id:
+        type: string
+        required: true
+jobs:
+  native_ui:
+    type: maestro
+    params:
+      build_id: ${{ inputs.build_id }}
+      device_identifier: iPhone 16 Pro Max
+      flow_path: verification/ios-ui.yaml
+      record_screen: true
+      retries: 0

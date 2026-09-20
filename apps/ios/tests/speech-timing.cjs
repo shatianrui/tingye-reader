@@ -1,0 +1,23 @@
+const assert=require('node:assert/strict'),fs=require('fs');
+const load=require('./load-ts.cjs'),{mapTimedWords,speechMarkAt}=load('src/tingye/speech-timing.ts');
+const {estimatedSpeechOffset}=load('src/tingye/speech-progress.ts');
+const fixture=JSON.parse(fs.readFileSync('tests/fixtures/minimax-word-timing.json','utf8'));
+const words=fixture.subtitles.flatMap(s=>s.timestamped_words).map(w=>({text:w.word,startTime:w.time_begin/1000,endTime:w.time_end/1000}));
+const marks=mapTimedWords(fixture.text,words);assert.ok(marks.length>25);
+let oldMismatch=0;
+for(const word of words){if(!/[\p{L}\p{N}]/u.test(word.text))continue;
+ const time=(word.startTime+word.endTime)/2,mark=speechMarkAt(marks,time);
+ assert.ok(mark);assert.equal(fixture.text.slice(mark.start,mark.end),word.text,'actual provider word at '+time);
+ const old=estimatedSpeechOffset(fixture.text,0,time,words.at(-1).endTime);
+ if(old<mark.start||old>=mark.end)oldMismatch++;
+}
+assert.ok(oldMismatch>5,'real recording must expose the old duration-weighting bug');
+assert.equal(speechMarkAt(marks,0),undefined,'no highlight before actual voice onset');
+const numbers=mapTimedWords('今天是9月18日，共计2026元。',[{text:'今天是',startTime:0,endTime:1},{text:'九月十八日',startTime:1,endTime:3},{text:'共计',startTime:3,endTime:4},{text:'两千零二十六元',startTime:4,endTime:6}]);
+assert.equal(numbers.length,4);assert.deepEqual(Array.from(numbers,m=>'今天是9月18日，共计2026元。'.slice(m.start,m.end)),['今天是','9月18日','共计','2026元']);
+assert.equal(mapTimedWords('这是一本完全不同的书籍',[{text:'天气不错',startTime:0,endTime:1}]).length,0);
+const repeat=mapTimedWords('你好。你好。再见。',[{text:'你好',startTime:0,endTime:1},{text:'你好',startTime:2,endTime:3},{text:'再见',startTime:4,endTime:5}]);
+assert.deepEqual(Array.from(repeat,m=>m.start),[0,3,6]);
+assert.equal(speechMarkAt(repeat,2).start,3);
+assert.equal(mapTimedWords('你好',[{text:'你好',startTime:NaN,endTime:1}]).length,0);
+console.log(`PASS: real MiniMax audio word timestamps (${marks.length} marks), ${oldMismatch} old-estimate mismatches reproduced; no future words, Mandarin number normalization, repetition, mismatch rejection and invalid times.`);

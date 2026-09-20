@@ -1,0 +1,7 @@
+tests
+*.log
+.env*
+.claude
+.wrangler
+dist
+.openai

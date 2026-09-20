@@ -1,0 +1,74 @@
+{
+  "expo": {
+    "name": "微读",
+    "slug": "we_reader_rn",
+    "owner": "tianruisha",
+    "version": "1.7.7",
+    "orientation": "default",
+    "icon": "./assets/android-release-16004.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.shatianrui.wereader",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "UIBackgroundModes": [
+          "audio"
+        ],
+        "NSSpeechRecognitionUsageDescription": "用于在 iPhone 本机分析已生成的朗读音频，让高亮跟随正在读的文字；不录制麦克风，也不上传音频。"
+      },
+      "buildNumber": "34",
+      "icon": "./assets/android-release-16004.png"
+    },
+    "android": {
+      "package": "com.shatianrui.wereader",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/tingye-icon-v2.png",
+        "backgroundColor": "#173C35"
+      },
+      "predictiveBackGestureEnabled": false,
+      "versionCode": 16004,
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_MEDIA_AUDIO",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-asset",
+        {
+          "assets": [
+            "./assets/reader/third_party_notices.json"
+          ]
+        }
+      ],
+      "expo-web-browser",
+      "expo-secure-store",
+      [
+        "expo-audio",
+        {
+          "enableBackgroundPlayback": true,
+          "recordAudioAndroid": false,
+          "microphonePermission": false
+        }
+      ],
+      "expo-image"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "4f1bd01f-edb3-4faf-b5a9-bea1dbff17a4"
+      }
+    },
+    "scheme": "wereader",
+    "platforms": [
+      "ios"
+    ]
+  }
+}

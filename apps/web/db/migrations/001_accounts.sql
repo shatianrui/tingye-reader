@@ -1,0 +1,16 @@
+create schema if not exists tingye;
+create table if not exists tingye.accounts (id uuid primary key, username text unique not null, password_hash text not null, recovery_hash text not null, created_at timestamptz not null default now());
+create table if not exists tingye.invites (digest text primary key, expires_at timestamptz not null, used_by uuid references tingye.accounts(id), used_at timestamptz);
+create table if not exists tingye.sessions (digest text primary key, user_id uuid not null references tingye.accounts(id) on delete cascade, expires_at timestamptz not null, created_at timestamptz not null default now());
+create index if not exists sessions_user_id on tingye.sessions(user_id);
+create table if not exists tingye.rate_limits (key text primary key, count integer not null, expires_at timestamptz not null);
+create table if not exists tingye.books (user_id uuid not null references tingye.accounts(id) on delete cascade, id text not null, title text not null, author text not null, format text not null, color text not null default 'green', object_path text, object_size bigint not null default 0, chapter integer not null default 0, position integer not null default 0, progress_updated_at bigint not null default 0, created_at timestamptz not null default now(), primary key (user_id,id));
+create table if not exists tingye.uploads (id uuid primary key, user_id uuid not null references tingye.accounts(id) on delete cascade, book_id text not null, object_path text unique not null, expires_at timestamptz not null);
+revoke all on schema tingye from public, anon, authenticated;
+revoke all on all tables in schema tingye from public, anon, authenticated;
+alter table tingye.accounts enable row level security;
+alter table tingye.invites enable row level security;
+alter table tingye.sessions enable row level security;
+alter table tingye.rate_limits enable row level security;
+alter table tingye.books enable row level security;
+alter table tingye.uploads enable row level security;
