@@ -51,6 +51,13 @@ jobs:
       - name: Install required SDK packages
         shell: pwsh
         run: '& $env:ANDROID_SDKMANAGER "build-tools;36.0.0" "platform-tools"'
+      - name: Point npm at the public registry
+        shell: pwsh
+        # package-lock.json pins package hosts at a mirror (registry.npmmirror.com)
+        # that is unreliable from hosted runners; npm ci fetches from the exact
+        # "resolved" URL in the lockfile regardless of --registry, so repoint it
+        # here rather than passing a registry flag that npm would ignore.
+        run: (Get-Content package-lock.json) -replace 'registry\.npmmirror\.com','registry.npmjs.org' | Set-Content package-lock.json
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
@@ -94,6 +101,10 @@ jobs:
           node-version: '22'
           cache: npm
           cache-dependency-path: apps/ios/package-lock.json
+      - name: Point npm at the public registry
+        # See the matching step in the android job: npm ci fetches from the
+        # lockfile's "resolved" host regardless of --registry.
+        run: sed -i 's#registry\.npmmirror\.com#registry.npmjs.org#g' package-lock.json
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
