@@ -6,6 +6,10 @@ on:
         description: Build signed Android APK
         type: boolean
         default: true
+      android_unsigned:
+        description: Build an unsigned APK instead (no Android keystore secrets needed)
+        type: boolean
+        default: false
       build_ios:
         description: Build iOS IPA via EAS
         type: boolean
@@ -70,22 +74,34 @@ jobs:
       - run: npm test
         timeout-minutes: 10
       - name: Decode signing keystore
+        if: ${{ !inputs.android_unsigned }}
         shell: pwsh
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
-          if (!$env:ANDROID_KEYSTORE_BASE64) { throw 'Add the ANDROID_KEYSTORE_BASE64 repository secret (base64 of your release keystore) before running this workflow.' }
+          if (!$env:ANDROID_KEYSTORE_BASE64) { throw 'Add the ANDROID_KEYSTORE_BASE64 repository secret (base64 of your release keystore) before running this workflow, or set android_unsigned to build an unsigned APK instead.' }
           $bytes = [Convert]::FromBase64String($env:ANDROID_KEYSTORE_BASE64)
           $path = Join-Path $env:RUNNER_TEMP 'release.keystore'
           [IO.File]::WriteAllBytes($path, $bytes)
           Add-Content -Path $env:GITHUB_ENV -Value "ANDROID_KEYSTORE_PATH=$path"
       - name: Build signed APK
+        if: ${{ !inputs.android_unsigned }}
         shell: pwsh
         env:
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: npm run build:apk
+        timeout-minutes: 35
+      - name: Build unsigned APK
+        if: ${{ inputs.android_unsigned }}
+        shell: pwsh
+        # No overwrite-install guarantee: an unsigned APK can never replace an
+        # existing signed install of this app and is for local testing only.
+        run: |
+          pwsh -NoProfile -ExecutionPolicy Bypass -File tools/build-local.ps1 -Unsigned
+          New-Item -ItemType Directory -Force releases | Out-Null
+          Copy-Item android/app/build/outputs/apk/release/app-release-unsigned.apk releases/app-unsigned.apk
         timeout-minutes: 35
       - name: Checksum
         shell: pwsh
