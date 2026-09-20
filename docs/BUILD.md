@@ -56,3 +56,15 @@ Vercel 项目 Root Directory 设置为 apps/web；将 .env.example 对应变量�
 安装页依赖 public/releases 下的 APK / IPA。仓库只保留图标和展示截图，不包含安装包：部署前恢复对应版本安装文件，或将下载路由改为自己的持久制品存储，否则下载接口会缺少文件。不要用空的 releases 目录覆盖正在工作的生产下载站。每次发布核对版本、大小、SHA-256 和签名，再更新发布常量。
 
 .env.local、credentials.json、私钥、用户书籍和数据库备份禁止入库。db/supabase-ca.json 是验证数据库 TLS 的公开 CA，不是服务端密钥。
+
+## GitHub Actions 构建 APK / IPA
+
+`.github/workflows/build-mobile.yml` 手动触发（Actions 页 Run workflow），不随 push/PR 自动运行。Android 任务跑在 windows-latest（build-local.ps1 依赖 gradlew.bat），iOS 任务跑在 ubuntu-latest 上远程触发 EAS 云构建。两个任务各自先执行 npm ci、typecheck、test，再构建；失败会中止，不会用未通过测试的源码出包。
+
+运行前在仓库 Settings → Secrets and variables → Actions 配置：
+
+- Android 签名：`ANDROID_KEYSTORE_BASE64`（release keystore 文件的 base64，例如 `base64 -w0 your.keystore`）、`ANDROID_KEY_ALIAS`、`ANDROID_STORE_PASSWORD`、`ANDROID_KEY_PASSWORD`。必须是原应用签名的同一把 keystore，否则产物无法覆盖安装线上版本。
+- iOS 签名：`IOS_DISTRIBUTION_CERTIFICATE_BASE64`（distribution.p12 的 base64）、`IOS_DISTRIBUTION_CERTIFICATE_PASSWORD`、`IOS_PROVISIONING_PROFILE_BASE64`（.mobileprovision 的 base64，需与证书、Bundle ID 相符；production profile 用于商店签名，preview profile 需包含设备 UDID）。
+- `EXPO_TOKEN`：有该 EAS 项目构建权限的访问令牌（expo.dev 账号设置里创建），用于非交互登录 EAS CLI。
+
+任一签名密钥缺失时对应任务会在解密/构建前明确报错，不会用空值静默构建出无效或未签名产物。产物通过 workflow 的 Artifacts 下载；`create_release` 输入设为 true 时会额外把两端产物打包发布到一个新建的 GitHub Release（默认关闭，避免每次调试运行都产生公开发布）。密钥文件只落在 runner 的临时目录，iOS 任务结束时会清理 credentials.json 和证书；不要把这些密钥写回仓库或工作流以外的地方。

@@ -1,0 +1,150 @@
+name: Build mobile releases
+on:
+  workflow_dispatch:
+    inputs:
+      build_android:
+        description: Build signed Android APK
+        type: boolean
+        default: true
+      build_ios:
+        description: Build iOS IPA via EAS
+        type: boolean
+        default: true
+      ios_profile:
+        description: EAS build profile for iOS
+        type: choice
+        options: [preview, production]
+        default: production
+      create_release:
+        description: Attach built artifacts to a new GitHub Release
+        type: boolean
+        default: false
+permissions:
+  contents: read
+jobs:
+  android:
+    if: ${{ inputs.build_android }}
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: apps/android
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: apps/android/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Install required SDK packages
+        run: sdkmanager --install "build-tools;36.0.0" "platform-tools"
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - name: Decode signing keystore
+        shell: pwsh
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if (!$env:ANDROID_KEYSTORE_BASE64) { throw 'Add the ANDROID_KEYSTORE_BASE64 repository secret (base64 of your release keystore) before running this workflow.' }
+          $bytes = [Convert]::FromBase64String($env:ANDROID_KEYSTORE_BASE64)
+          $path = Join-Path $env:RUNNER_TEMP 'release.keystore'
+          [IO.File]::WriteAllBytes($path, $bytes)
+          Add-Content -Path $env:GITHUB_ENV -Value "ANDROID_KEYSTORE_PATH=$path"
+      - name: Build signed APK
+        shell: pwsh
+        env:
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: npm run build:apk
+      - name: Checksum
+        shell: pwsh
+        working-directory: apps/android/releases
+        run: Get-FileHash *.apk -Algorithm SHA256 | Format-List | Tee-Object -FilePath sha256.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: |
+            apps/android/releases/*.apk
+            apps/android/releases/sha256.txt
+  ios:
+    if: ${{ inputs.build_ios }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/ios
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: apps/ios/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - name: Restore signing credentials
+        env:
+          IOS_DISTRIBUTION_CERTIFICATE_BASE64: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_BASE64 }}
+          IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+          IOS_DISTRIBUTION_CERTIFICATE_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -z "${IOS_DISTRIBUTION_CERTIFICATE_BASE64:-}" ] || [ -z "${IOS_PROVISIONING_PROFILE_BASE64:-}" ]; then
+            echo 'Add IOS_DISTRIBUTION_CERTIFICATE_BASE64, IOS_PROVISIONING_PROFILE_BASE64 and IOS_DISTRIBUTION_CERTIFICATE_PASSWORD repository secrets before running this workflow.' >&2
+            exit 1
+          fi
+          mkdir -p ios_creds
+          echo "$IOS_DISTRIBUTION_CERTIFICATE_BASE64" | base64 -d > ios_creds/distribution.p12
+          echo "$IOS_PROVISIONING_PROFILE_BASE64" | base64 -d > ios_creds/profile.mobileprovision
+          cat > credentials.json <<JSON
+          {
+            "ios": {
+              "provisioningProfilePath": "ios_creds/profile.mobileprovision",
+              "distributionCertificate": {
+                "path": "ios_creds/distribution.p12",
+                "password": "$IOS_DISTRIBUTION_CERTIFICATE_PASSWORD"
+              }
+            }
+          }
+          JSON
+      - name: Build IPA via EAS
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -z "${EXPO_TOKEN:-}" ]; then
+            echo 'Add the EXPO_TOKEN repository secret (an EAS access token with build permission on this project) before running this workflow.' >&2
+            exit 1
+          fi
+          pwsh -NoProfile -ExecutionPolicy Bypass -File tools/build-device.ps1 -Profile ${{ inputs.ios_profile }}
+      - name: Clean up credentials
+        if: always()
+        run: rm -rf ios_creds credentials.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ios-ipa
+          path: apps/ios/*.ipa
+          if-no-files-found: warn
+  release:
+    needs: [android, ios]
+    if: >-
+      ${{ !cancelled() && inputs.create_release &&
+      (needs.android.result == 'success' || needs.android.result == 'skipped') &&
+      (needs.ios.result == 'success' || needs.ios.result == 'skipped') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: mobile-${{ github.run_number }}
+          name: Mobile build ${{ github.run_number }}
+          files: dist/**/*
