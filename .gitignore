@@ -40,3 +40,11 @@ local.properties
 *.db
 /apps/android/releases/
 /apps/ios/releases/
+
+.inspect*
+**/.inspect*
+
+*-build.json
+*-status.json
+.reports*/
+/apps/web/public/releases/*-evidence/

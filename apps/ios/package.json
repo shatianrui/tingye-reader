@@ -1,6 +1,6 @@
 {
   "name": "we_reader_rn",
-  "version": "1.7.7",
+  "version": "1.8.0",
   "main": "index.ts",
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",
@@ -45,11 +45,12 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
-    "test": "node tests/player-queue.cjs && node tests/import-book.cjs && node tests/account-login.cjs && node tests/native-library.cjs && node tests/typesetting.cjs && node tests/book-covers.cjs && node tests/library-presentation.cjs && node tests/reader-layout.cjs && node tests/speech-timing.cjs && node tests/glm-startup.cjs && node tests/native-alignment.cjs && node tests/tts-retry.cjs && node tests/cross-device-sync.cjs && node tests/shelf-reappearance.cjs && node tests/native-shelf-transport.cjs && node tests/progress-restore.cjs",
+    "test": "node tests/player-queue.cjs && node tests/import-book.cjs && node tests/account-login.cjs && node tests/typesetting.cjs && node tests/book-covers.cjs && node tests/library-presentation.cjs && node tests/reader-layout.cjs && node tests/speech-timing.cjs && node tests/glm-startup.cjs && node tests/native-alignment.cjs && node tests/tts-retry.cjs && node tests/native-shelf-transport.cjs && node tests/backup-v2.cjs",
     "build:reader": "node tools/build-reader-assets.cjs",
     "test:reader": "node tests/original-pages.cjs",
     "build:ipa": "pwsh -NoProfile -ExecutionPolicy Bypass -File tools/build-device.ps1",
-    "eas-build-post-install": "node tools/select-build-entry.cjs"
+    "eas-build-post-install": "node tools/select-build-entry.cjs",
+    "test:legacy-v1": "node tests/native-library.cjs && node tests/cross-device-sync.cjs && node tests/shelf-reappearance.cjs && node tests/progress-restore.cjs"
   },
   "private": true
 }

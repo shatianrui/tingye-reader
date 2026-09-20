@@ -29,3 +29,5 @@ npm run dev
 每个工程运行 `npm ci`、`npm run typecheck`、`npm test`。网站首次类型检查前执行 `npx next typegen`。GitHub Actions 分别检查三端源码，不访问生产数据库、不提交商店构建。
 
 详见 [CLI 构建与部署](docs/BUILD.md)、[维护与同步检查](docs/MAINTENANCE.md)。签名材料、用户数据与安装包不在源码仓库内。
+
+1.8.0 重构为明确的「上传本机备份 / 从云端还原」，三端共用完整快照协议。阅读位置与原书资源随同一次备份提交，详见 [备份与还原说明](docs/BACKUP-V2.md)。

@@ -3,7 +3,7 @@
     "name": "微读",
     "slug": "we_reader_rn",
     "owner": "tianruisha",
-    "version": "1.7.7",
+    "version": "1.8.0",
     "orientation": "default",
     "icon": "./assets/android-release-16004.png",
     "userInterfaceStyle": "light",
@@ -17,7 +17,7 @@
         ],
         "NSSpeechRecognitionUsageDescription": "用于在 iPhone 本机分析已生成的朗读音频，让高亮跟随正在读的文字；不录制麦克风，也不上传音频。"
       },
-      "buildNumber": "34",
+      "buildNumber": "36",
       "icon": "./assets/android-release-16004.png"
     },
     "android": {
@@ -27,7 +27,7 @@
         "backgroundColor": "#173C35"
       },
       "predictiveBackGestureEnabled": false,
-      "versionCode": 16004,
+      "versionCode": 18001,
       "blockedPermissions": [
         "android.permission.RECORD_AUDIO",
         "android.permission.READ_MEDIA_AUDIO",

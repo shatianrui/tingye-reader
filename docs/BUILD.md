@@ -6,6 +6,8 @@
 
 设置 JAVA_HOME、ANDROID_HOME（或 ANDROID_SDK_ROOT）。签名使用原应用的私有 keystore，配置环境变量：
 
+Windows 原生 C++ 编译存在 260 字符路径限制，建议将 Android 工程复制或签出到短路径（如 `D:/ty180`）后构建，依赖也应安装在短路径下；单纯软链接 node_modules 不能消除其真实长路径。可设置 `TINGYE_CXX_DIR` 指定较短的 CMake 临时目录。
+
 - ANDROID_KEYSTORE_PATH：keystore 文件路径。
 - ANDROID_KEY_ALIAS：密钥别名。
 - ANDROID_STORE_PASSWORD、ANDROID_KEY_PASSWORD：对应密码。

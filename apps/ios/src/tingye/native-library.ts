@@ -28,7 +28,7 @@ export function nativeLibrary(userId:string){
    path+=(path.includes('?')?'&':'?')+'_sync='+requestVersion;
    headers.set('Cache-Control','no-cache');headers.set('Pragma','no-cache');
   }
-  const result=await api<T>(path,{...options,headers,...(reading?{cache:'no-store' as const}:{}),signal:options?.signal??AbortSignal.timeout(15000)});
+  const result=await api<T>(path,{...options,headers,...(reading?{cache:'no-store' as const}:{}),signal:options?.signal??AbortSignal.timeout(path.startsWith('/api/backups')?120000:15000)});
   const owner=(result as {account?:{userId?:string}}|null)?.account;
   if(owner&&owner.userId!==userId)throw Error('云端返回的账号与本机书架不一致，请退出后登录同一听页账号。本机书籍不会删除。');
   return result;
