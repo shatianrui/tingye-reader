@@ -77,7 +77,7 @@ export function createLibrary(storage:LibraryStorage,remote:Remote,transfer:(url
   const task=(async()=>{
    const body=await storage.read(id),found=await find(id),entry=found?{...found}:undefined;if(!body||!entry||entry.deleted)throw Error('请先在此设备导入或打开这本书。');
    const json=JSON.stringify(validateBook(body)),bytes=new TextEncoder().encode(json).byteLength;if(bytes>18*1024*1024)throw Error('正文超过单本 18MB 的云端上限，请拆分书籍。');
-   await syncOne({...entry,...meta(body)});const signed=await send({action:'backup-start',id,bytes}) as {uploadId:string;url:string};
+   await syncOne({...entry,...meta(body)});const signed=await send({action:'backup-start',id,bytes,contentVersion:entry.contentVersion}) as {uploadId:string;url:string};
    try{const upload=await transfer(signed.url,{method:'PUT',headers:{'Content-Type':'application/json'},body:json});if(!upload.ok)throw Error('正文上传失败，请检查网络后重试。');await send({action:'backup-complete',uploadId:signed.uploadId});}
    catch(error){await send({action:'backup-cancel',uploadId:signed.uploadId}).catch(()=>{});throw error;}
    await update(entries=>{const b=entries.find(x=>x.id===id);if(b&&!b.deleted&&b.contentVersion===entry.contentVersion){b.backedUp=true;b.contentDirty=false;}});

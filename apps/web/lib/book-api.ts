@@ -2,7 +2,7 @@ import {randomUUID} from 'node:crypto';
 import {db} from './db';
 import {AuthError,requestUser,sameOrigin,rateLimit} from './auth';
 import {storage} from './storage';
-import {metadata,validId,validateBook,BookValidationError} from './book-validation';
+import {metadata,validId,validateBook,staleUpload,BookValidationError} from './book-validation';
 import {samples} from './books';
 const json=(data:unknown,status=200)=>Response.json(data,{status,headers:{'Cache-Control':'no-store'}});
 const clean=(row:Record<string,unknown>)=>({id:row.id,title:row.title,author:row.author,format:row.format,color:row.color,chapters:[],chapter:row.chapter,position:row.position,updatedAt:Number(row.progress_updated_at),backedUp:!!row.object_path});
@@ -46,6 +46,8 @@ export async function handle(req:Request){let stage='auth';try{
   await rateLimit('uploads:'+uid,240,3600);
   const bytes=body.bytes===undefined?18*1024*1024:body.bytes;
   if(!Number.isSafeInteger(bytes)||bytes<1||bytes>18*1024*1024)throw new AuthError('单本云端正文上限为 18MB。');
+  const contentVersion=body.contentVersion===undefined?null:body.contentVersion;
+  if(contentVersion!==null&&(!Number.isSafeInteger(contentVersion)||contentVersion<0))throw new AuthError('内容版本无效。');
   const book=await sql`select id from tingye.books where user_id=${uid} and id=${body.id}`;if(!book.length)throw new AuthError('请先保存书籍信息。');
   const uploadId=randomUUID(),path=`${uid}/${body.id}/${uploadId}.json`;
   await sql.begin(async tx=>{
@@ -54,7 +56,7 @@ export async function handle(req:Request){let stage='auth';try{
    const pending=await tx`select count(*) as count from tingye.uploads where user_id=${uid} and expires_at>now()`;
    const current=await tx`select object_size from tingye.books where user_id=${uid} and id=${body.id}`;
    if(Math.max(0,Number(used[0].size)-Number(current[0]?.object_size||0))+Number(pending[0].count)*18*1024*1024+bytes>50*1024*1024)throw new AuthError('备份空间或待完成上传已达上限，请先完成上传或清理备份。');
-   await tx`insert into tingye.uploads(id,user_id,book_id,object_path,expires_at) values(${uploadId},${uid},${body.id},${path},now()+interval '2 hours')`;
+   await tx`insert into tingye.uploads(id,user_id,book_id,object_path,expires_at,content_version) values(${uploadId},${uid},${body.id},${path},now()+interval '2 hours',${contentVersion})`;
   });
   const signed=await storage().createSignedUploadUrl(path);
   if(signed.error){await sql`delete from tingye.uploads where id=${uploadId} and user_id=${uid}`;throw signed.error;}
@@ -77,10 +79,14 @@ export async function handle(req:Request){let stage='auth';try{
   let old:string|null=null;
   await sql.begin(async tx=>{
    await tx`select id from tingye.accounts where id=${uid} for update`;
-   const current=await tx`select object_path from tingye.books where user_id=${uid} and id=${book.id}`;if(!current.length)throw new AuthError('书籍已被移除。');
+   const current=await tx`select object_path,content_version from tingye.books where user_id=${uid} and id=${book.id}`;if(!current.length)throw new AuthError('书籍已被移除。');
+   // Two devices can race signed uploads for the same book while offline. Only reject
+   // an upload that is provably older than content another upload already landed;
+   // either side missing a version (pre-existing clients) must keep completing as before.
+   if(staleUpload(current[0].content_version==null?null:Number(current[0].content_version),upload.content_version==null?null:Number(upload.content_version)))throw new AuthError('云端已存在更新的正文，请先重新同步，再备份这本书。',409);
    const sum=await tx`select coalesce(sum(object_size),0) as total from tingye.books where user_id=${uid} and id<>${book.id}`;if(Number(sum[0].total)+file.data.size>50*1024*1024)throw new AuthError('你的云端备份已达到 50MB 上限，请先移除不用的备份。');
    const consumed=await tx`delete from tingye.uploads where id=${body.uploadId} and user_id=${uid} returning id`;if(!consumed.length)throw new AuthError('上传凭证已使用。');
-   old=current[0].object_path;await tx`update tingye.books set object_path=${upload.object_path},object_size=${file.data.size} where user_id=${uid} and id=${book.id}`;
+   old=current[0].object_path;await tx`update tingye.books set object_path=${upload.object_path},object_size=${file.data.size},content_version=coalesce(${upload.content_version}::bigint,content_version) where user_id=${uid} and id=${book.id}`;
   });
   if(old)await storage().remove([old]);return json({ok:true});
  }

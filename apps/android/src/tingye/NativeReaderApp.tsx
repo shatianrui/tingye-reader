@@ -91,7 +91,25 @@ export default function NativeReaderApp(){
  const signedIn=(next:Session)=>{readerPlayer.clearCache();setBook(null);library.current=nativeLibrary(next.user.userId);setIdentity(next.user);setNotice('');setBooks(samples);void reload().catch(e=>setNotice(errorText(e)));};
  const openBook=async(item:Book,initialChapter?:number)=>{const shelf=library.current;if(busy||!shelf)return;readerPlayer.stop();save();await progressQueue.current;setBusy(true);setNotice('');try{const b=await shelf.open(item.id);if(library.current!==shelf)return;setBook(b);setControlsVisible(false);setChapter(Math.max(0,Math.min(initialChapter??b.chapter??0,b.chapters.length-1)));setPosition(initialChapter===undefined?(b.position||0):0);}catch(e){setNotice(errorText(e));}finally{setBusy(false);}};
  const importBooks=async()=>{if(busy||!library.current)return;const selection=await DocumentPicker.getDocumentAsync({type:'*/*',multiple:true,copyToCacheDirectory:true});if(selection.canceled)return;setBusy(true);setNotice('');const failures:string[]=[];let imported=0;for(const asset of selection.assets){try{const b=await parseBook(asset.uri,asset.name);await library.current.importBook(b);imported++;}catch(e){failures.push(`${asset.name}：${errorText(e)}`);}}setBooks(await library.current.list());setNotice([imported?`已保存 ${imported} 本到手机。点击“同步”上传正文和进度，再在其他设备点击同步。`:'',...failures].filter(Boolean).join('\n'));setBusy(false);};
- const synchronize=async()=>{const shelf=library.current;if(busy||!shelf)return;setBusy(true);setNotice('正在同步正文与阅读进度…');try{save();await progressQueue.current;const r=await shelf.synchronize();if(library.current!==shelf)return;setBooks(r.books);setNotice([`${r.errors.length||r.missing.length?'同步部分完成':'同步完成'}：上传 ${r.uploaded} 本，下载 ${r.downloaded} 本，已核对阅读进度。`,r.missing.length?`${r.missing.length} 本尚无云端正文，请先在原设备升级后点击同步：${r.missing.slice(0,5).join('、')}`:'',...r.errors.slice(0,5)].filter(Boolean).join('\n'));}catch(e){if(library.current===shelf)setNotice('同步失败：'+errorText(e));}finally{if(library.current===shelf)setBusy(false);}};
+ const synchronize=async()=>{
+   const shelf=library.current;if(busy||!shelf)return;setBusy(true);setNotice('正在核对云端账号与书架…');
+   try{
+     const verified=await api<{user:Session['user']|null}>('/api/auth?_verify='+Date.now(),{cache:'no-store',headers:{'Cache-Control':'no-cache'},signal:AbortSignal.timeout(10000)});
+     if(!verified.user)throw Error('登录已过期，请重新登录。本机书籍不会删除。');
+     if(verified.user.userId!==identity?.userId)throw Error('云端账号与当前本机账号不一致，请退出后登录同一听页账号。本机书籍不会删除。');
+     if(library.current!==shelf)return;
+     save();await progressQueue.current;
+     const r=await shelf.synchronize(state=>{
+       if(library.current!==shelf)return;
+       setBooks(state.books);
+       const step=state.title?`${state.phase==='upload'?'正在上传':'正在下载'}：${state.title}`:'正在核对书架与阅读进度…';
+       setNotice(`账号 ${verified.user!.username} · 云端 ${state.cloudCount} 条书目\n已上传 ${state.uploaded} 本，已下载 ${state.downloaded} 本。${step}`);
+     });
+     if(library.current!==shelf)return;setBooks(r.books);
+     setNotice([`账号 ${verified.user.username} · 云端 ${r.cloudCount} 条书目`,`${r.errors.length||r.missing.length?'同步部分完成':'同步完成'}：上传 ${r.uploaded} 本，下载 ${r.downloaded} 本。${r.errors.length?'部分步骤失败，详见下方。':'已核对阅读进度。'}`,r.progressUpdates.length?`已更新 ${r.progressUpdates.length} 本阅读位置：${r.progressUpdates.slice(0,3).map(b=>`${b.title} · 第 ${(b.chapter||0)+1} 章，第 ${(b.position||0)+1} 句`).join('；')}`:'',r.restored?`已恢复 ${r.restored} 条重新出现在云端的书目。`:'',r.missing.length?`${r.missing.length} 本尚无云端正文，请先在原设备升级后点击同步：${r.missing.slice(0,5).join('、')}`:'',...r.errors.slice(0,5)].filter(Boolean).join('\n'));
+   }catch(e){if(library.current===shelf)setNotice('同步失败：'+errorText(e));}
+   finally{if(library.current===shelf)setBusy(false);}
+ };
  const removeBook=(item:Book)=>Alert.alert('移除书籍',`删除《${item.title}》的本机副本、云端备份及进度？`,[{text:'取消',style:'cancel'},{text:'删除',style:'destructive',onPress:()=>{void library.current?.remove(item.id).then(()=>library.current?.list()).then(result=>{if(result)setBooks(result);}).catch(e=>setNotice(errorText(e)));}}]);
  const bookActions=(item:Book)=>{if(busy)return;Alert.alert(item.title,'本机书籍可以离线阅读；备份后可在网页和其他设备恢复。',[{text:'云端备份',onPress:()=>{setBusy(true);void library.current?.backup(item.id).then(()=>{setNotice('云端备份完成。');return reload();}).catch(e=>setNotice(errorText(e))).finally(()=>setBusy(false));}},{text:'移除书籍',style:'destructive',onPress:()=>removeBook(item)},{text:'取消',style:'cancel'}]);};
  const jump=(ci:number,si=0)=>{readerPlayer.stop();setChapter(ci);setPosition(si);setPageStart(0);setPageEnds([]);setPanel(null);};

@@ -3,7 +3,7 @@
     "name": "微读",
     "slug": "we_reader_rn",
     "owner": "tianruisha",
-    "version": "1.7.7",
+    "version": "1.7.8",
     "orientation": "default",
     "icon": "./assets/android-release-16004.png",
     "userInterfaceStyle": "light",

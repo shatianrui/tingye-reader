@@ -36,6 +36,14 @@ test('book validation failures return actionable 422 rather than misleading netw
  }
  assert.equal(h.messages.length,0);
 });
+test('a completing upload is only rejected when it is provably older than content already landed',()=>{
+ assert.equal(validation.staleUpload(5,3),true);
+ assert.equal(validation.staleUpload(3,5),false);
+ assert.equal(validation.staleUpload(3,3),false);
+ assert.equal(validation.staleUpload(null,3),false,'a book with no recorded version must never block completion');
+ assert.equal(validation.staleUpload(5,null),false,'an unversioned upload (older app build) must never be rejected');
+ assert.equal(validation.staleUpload(null,null),false);
+});
 test('invalid JSON is 400; unexpected storage failures disclose only the stage, not raw errors',async()=>{
  const h=handler();const invalid=await h.handle(new Request('https://test/api/books',{method:'POST',body:'{'}));assert.equal(invalid.status,400);assert.equal((await invalid.json()).code,'BOOK_INVALID_JSON');
  const response=await h.handle(new Request('https://test/api/books?id='+id));assert.equal(response.status,503);const data=await response.json();assert.equal(data.stage,'download');assert.equal(data.code,'BOOK_DOWNLOAD_FAILED');assert.ok(!JSON.stringify([data,h.messages]).includes('PRIVATE_TOKEN'));
