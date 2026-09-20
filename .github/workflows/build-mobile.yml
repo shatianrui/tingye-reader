@@ -39,9 +39,18 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - uses: android-actions/setup-android@v3
+      - name: Locate the runner's pre-installed Android SDK
+        shell: pwsh
+        run: |
+          if (!$env:ANDROID_HOME) { $env:ANDROID_HOME = $env:ANDROID_SDK_ROOT }
+          if (!$env:ANDROID_HOME -or !(Test-Path $env:ANDROID_HOME)) { throw 'windows-latest is expected to ship a pre-installed Android SDK; ANDROID_HOME/ANDROID_SDK_ROOT was not set.' }
+          $sdkmanager = Get-ChildItem -Path (Join-Path $env:ANDROID_HOME 'cmdline-tools') -Filter 'sdkmanager.bat' -Recurse -ErrorAction Stop | Select-Object -First 1
+          Add-Content -Path $env:GITHUB_ENV -Value "ANDROID_HOME=$($env:ANDROID_HOME)"
+          Add-Content -Path $env:GITHUB_ENV -Value "ANDROID_SDK_ROOT=$($env:ANDROID_HOME)"
+          Add-Content -Path $env:GITHUB_ENV -Value "ANDROID_SDKMANAGER=$($sdkmanager.FullName)"
       - name: Install required SDK packages
-        run: sdkmanager --install "build-tools;36.0.0" "platform-tools"
+        shell: pwsh
+        run: '& $env:ANDROID_SDKMANAGER "build-tools;36.0.0" "platform-tools"'
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
