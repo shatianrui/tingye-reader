@@ -54,6 +54,11 @@ jobs:
           Add-Content -Path $env:GITHUB_ENV -Value "ANDROID_SDK_ROOT=$($env:ANDROID_HOME)"
           Add-Content -Path $env:GITHUB_ENV -Value "ANDROID_SDKMANAGER=$($sdkmanager.FullName)"
       - name: Install required SDK packages
+        # Only the signing step (zipalign/apksigner) needs a specific build-tools
+        # version; an unsigned build never touches it, and Gradle resolves its own
+        # compile/build-tools needs independently. This sdkmanager call has hung
+        # more than once on this runner pool, so skip it entirely when not signing.
+        if: ${{ !inputs.android_unsigned }}
         shell: pwsh
         timeout-minutes: 5
         # `echo y` guards against an unexpected license re-prompt blocking forever
