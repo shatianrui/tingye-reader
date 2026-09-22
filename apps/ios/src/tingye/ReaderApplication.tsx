@@ -10,6 +10,7 @@ import { StatusBar } from 'expo-status-bar';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Speech from 'expo-speech';
 import * as SecureStore from 'expo-secure-store';
+import {activateKeepAwakeAsync, deactivateKeepAwake} from 'expo-keep-awake';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api, restoreSession, signOut, clearSession, type Session } from './client';
 import AccountScreen from './AccountScreen';
@@ -36,8 +37,8 @@ import {readerServices, type ReaderServices} from './reader-services';
 import {createReadingProgress} from './reading-progress';
 import {adaptiveReaderLayout} from './reader-layout';
 
-type Preferences = { fontSize:number; theme:string; voice:VoiceConfig;typography:Typography;originalLayout:boolean;spreadMode:'auto'|'single' };
-const initial:Preferences = {fontSize:22,theme:'paper',voice:defaultVoice,typography:defaultTypography,originalLayout:true,spreadMode:'auto'};
+type Preferences = { fontSize:number; theme:string; voice:VoiceConfig;typography:Typography;originalLayout:boolean;spreadMode:'auto'|'single';pageTurnAnimation:boolean;keepAwake:boolean };
+const initial:Preferences = {fontSize:22,theme:'paper',voice:defaultVoice,typography:defaultTypography,originalLayout:true,spreadMode:'auto',pageTurnAnimation:true,keepAwake:true};
 const errorText=(e:unknown)=>e instanceof Error?e.message:'操作失败，请重试。';
 
 export default function ReaderApplication({services=readerServices}:{services?:ReaderServices}={}){
@@ -96,9 +97,17 @@ export default function ReaderApplication({services=readerServices}:{services?:R
  useEffect(()=>{readerPlayer.onPosition=(ci,si)=>{readingProgress.current.move(ci,si);latest.current={...latest.current,chapter:ci,position:si};setChapter(ci);setPosition(si);};return()=>{readerPlayer.onPosition=null;};},[]);
  useEffect(()=>{setPageStart(0);setPageEnds([]);setReaderPage({index:0,count:1,start:0,end:0});},[chapter,book?.id]);
  useEffect(()=>{readerPlayer.stop();},[book?.id]);
+ // Reading is the one screen where an idle-timeout lock is actively unwelcome:
+ // losing the page mid-chapter to a dimmed/locked screen. Only holds the lock
+ // while a book is actually open, and only when the reader opted in.
+ useEffect(()=>{
+   if(!book||!prefs.keepAwake)return;
+   void activateKeepAwakeAsync('tingye-reading');
+   return()=>{void deactivateKeepAwake('tingye-reading');};
+ },[!!book,prefs.keepAwake]);
  const activeRange=ranges[position];
  const pageIndex=readerPage.index;
- const readerConfig=useMemo(()=>({fontSize:prefs.fontSize,typography:prefs.typography,colors,original:prefs.originalLayout,spread:layout.spread}),[prefs.fontSize,prefs.typography,colors,prefs.originalLayout,layout.spread]);
+ const readerConfig=useMemo(()=>({fontSize:prefs.fontSize,typography:prefs.typography,colors,original:prefs.originalLayout,spread:layout.spread,pageTurn:prefs.pageTurnAnimation}),[prefs.fontSize,prefs.typography,colors,prefs.originalLayout,layout.spread,prefs.pageTurnAnimation]);
  const paginationReady=useCallback((next:ReaderPage)=>{setReaderPage(next);setPageStart(next.anchor??next.start);setPageEnds([next.end]);if(next.manual)readerPlayer.stop();if(next.manual){const si=Math.max(0,ranges.findIndex(r=>r.end>(next.anchor??next.start)));readingProgress.current.move(chapter,si);setPosition(si);}},[ranges,chapter]);
  const signedIn=(next:Session)=>{readerPlayer.clearCache();setBook(null);library.current=services.library(next.user.userId);setIdentity(next.user);setNotice('');setBooks(samples);void reload().catch(e=>setNotice(errorText(e)));};
  const openBook=async(item:Book,initialChapter?:number)=>{const shelf=library.current;if(busy||!shelf)return;readerPlayer.stop();save();await progressQueue.current;setBusy(true);setNotice('');try{const b=await shelf.open(item.id);if(library.current!==shelf)return;const ci=Math.max(0,Math.min(initialChapter??b.chapter??0,b.chapters.length-1)),si=initialChapter===undefined?(b.position||0):0;readingProgress.current.restore(b,b.chapter||0,b.position||0);if(initialChapter!==undefined)readingProgress.current.move(ci,si);setBook(b);setControlsVisible(false);setChapter(ci);setPosition(si);}catch(e){setNotice(errorText(e));}finally{setBusy(false);}};
@@ -230,6 +239,8 @@ export default function ReaderApplication({services=readerServices}:{services?:R
      {player.active&&<View style={[styles.settingsPlayback,{borderColor:colors.line,backgroundColor:colors.surface}]}><View style={{flex:1}}><Text style={{color:colors.text,fontWeight:'600'}}>{player.paused?'已暂停':player.buffering?'正在准备声音…':'听书继续播放中'}</Text><Text style={{color:colors.muted,fontSize:12,marginTop:6}}>调整字号和背景不会中断声音</Text></View><ReaderButton colors={colors} label={player.paused?'继续':'暂停'} onPress={()=>readerPlayer.togglePause()}/></View>}
      <Text style={[styles.label,{color:colors.muted}]}>书籍排版</Text><View style={styles.chips}><ReaderButton colors={colors} label="原书图文" primary={prefs.originalLayout} onPress={()=>setPrefs(p=>({...p,originalLayout:true}))}/><ReaderButton colors={colors} label="自定义阅读" primary={!prefs.originalLayout} onPress={()=>setPrefs(p=>({...p,originalLayout:false}))}/></View><Text style={{color:colors.muted,fontSize:13}}>原书图文保留 EPUB 样式、图片和表格。切换自定义阅读可应用下方字体、行距；PDF 保留原始页面，可双指缩放。</Text>
      <Text style={[styles.label,{color:colors.muted}]}>展开阅读</Text><View style={styles.chips}><ReaderButton colors={colors} label="自动双页" primary={prefs.spreadMode!=='single'} onPress={()=>setPrefs(p=>({...p,spreadMode:'auto'}))}/><ReaderButton colors={colors} label="始终单页" primary={prefs.spreadMode==='single'} onPress={()=>setPrefs(p=>({...p,spreadMode:'single'}))}/></View><Text style={{color:colors.muted,fontSize:13}}>宽屏自动并排显示两页，合屏回到单页并保留当前阅读位置。PDF 和固定版式 EPUB 保留原页。</Text>
+     <Text style={[styles.label,{color:colors.muted}]}>翻页方式</Text><View style={styles.chips}><ReaderButton colors={colors} label="拟真翻页" primary={prefs.pageTurnAnimation} onPress={()=>setPrefs(p=>({...p,pageTurnAnimation:true}))}/><ReaderButton colors={colors} label="直接切换" primary={!prefs.pageTurnAnimation} onPress={()=>setPrefs(p=>({...p,pageTurnAnimation:false}))}/></View><Text style={{color:colors.muted,fontSize:13}}>拟真翻页在翻页时加一个轻微滑动过渡，更接近电子书阅读器的手感；直接切换没有过渡，翻页更快。</Text>
+     <Text style={[styles.label,{color:colors.muted}]}>阅读时屏幕常亮</Text><View style={styles.chips}><ReaderButton colors={colors} label="开启" primary={prefs.keepAwake} onPress={()=>setPrefs(p=>({...p,keepAwake:true}))}/><ReaderButton colors={colors} label="关闭" primary={!prefs.keepAwake} onPress={()=>setPrefs(p=>({...p,keepAwake:false}))}/></View><Text style={{color:colors.muted,fontSize:13}}>开启后，打开书籍阅读时屏幕不会自动熄灭；离开书籍或退出 App 后恢复系统设置。</Text>
      <Text style={[styles.label,{color:colors.muted}]}>字号</Text><View style={styles.chips}><ReaderButton colors={colors} label="A−" onPress={()=>setPrefs(p=>({...p,originalLayout:false,fontSize:Math.max(16,p.fontSize-2)}))}/><Text style={{alignSelf:'center',color:colors.text,minWidth:32,textAlign:'center'}}>{prefs.fontSize}</Text><ReaderButton colors={colors} label="A＋" onPress={()=>setPrefs(p=>({...p,originalLayout:false,fontSize:Math.min(30,p.fontSize+2)}))}/></View>
      <ReadingTypographySettings value={prefs.typography} onChange={typography=>setPrefs(p=>({...p,typography,originalLayout:false}))} colors={colors} fontSize={prefs.fontSize} fontsReady={!!fontsReady}/>
      <Text style={[styles.label,{color:colors.muted}]}>阅读背景</Text><View style={styles.chips}>{readingThemes.map(theme=><Pressable key={theme.id} accessibilityRole="button" accessibilityLabel={theme.name} accessibilityState={{selected:prefs.theme===theme.id}} onPress={()=>setPrefs(p=>({...p,theme:theme.id}))} style={[styles.themeCard,{backgroundColor:theme.surface,borderColor:prefs.theme===theme.id?colors.accent:colors.line,borderWidth:prefs.theme===theme.id?2:1}]}><Text style={{fontSize:23,color:theme.text}}>文</Text><Text style={{fontSize:13,color:theme.text,marginTop:8,alignSelf:'stretch',textAlign:'center',marginHorizontal:4}}>{theme.name}{prefs.theme===theme.id?' ✓':''}</Text></Pressable>)}</View>

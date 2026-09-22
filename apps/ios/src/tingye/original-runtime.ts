@@ -3,7 +3,7 @@ import {installDesktopInput} from './desktop-input';
 import {paintWordHighlight} from './word-highlight';
 export function originalRuntime(){
  const init=window.READER_INIT,content=document.getElementById('ty-reader-book'),track=document.getElementById('ty-reader-track'),settings=document.getElementById('ty-reader-settings');
- let nodes=[],starts=[0],page=0,count=1,pitch=1,config=init.config,ready=false,timer,anchor=init.offset||0,lastPageMessage='',playback=null;
+ let nodes=[],starts=[0],page=0,count=1,pitch=1,config=init.config,ready=false,timer,anchor=init.offset||0,lastPageMessage='',playback=null,turnTimer;
  const send=(type,data={})=>window.ReactNativeWebView?.postMessage(JSON.stringify({type,...data}));
  const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
  const rectAt=(node,index)=>{const range=document.createRange();range.setStart(node,clamp(index,0,node.length));range.setEnd(node,clamp(index+1,0,node.length));return range.getBoundingClientRect();};
@@ -20,7 +20,7 @@ export function originalRuntime(){
   document.documentElement.style.setProperty('--column-width',columnWidth+'px');
   document.documentElement.style.setProperty('--page-height',(init.fixed?.height||h)+'px');
   if(init.fixed){const scale=Math.min(w/init.fixed.width,h/init.fixed.height);Object.assign(content.style,{width:init.fixed.width+'px',height:init.fixed.height+'px',columnWidth:'auto',transform:`scale(${scale})`,transformOrigin:'top left',marginLeft:Math.max(0,(w-init.fixed.width*scale)/2)+'px'});count=1;starts=[0];}
-  else{content.style.transform='none';page=0;Object.assign(content.style,{width:w+'px',height:h+'px',columnWidth:columnWidth+'px',columnCount:String(columns),columnGap:gap+'px',columnRule:columns===2?'1px solid '+config.colors.line:'none',columnFill:'auto',marginLeft:'0'});document.documentElement.style.setProperty('--page-height',h+'px');
+  else{content.style.transition='';clearTimeout(turnTimer);content.style.transform='none';page=0;Object.assign(content.style,{width:w+'px',height:h+'px',columnWidth:columnWidth+'px',columnCount:String(columns),columnGap:gap+'px',columnRule:columns===2?'1px solid '+config.colors.line:'none',columnFill:'auto',marginLeft:'0'});document.documentElement.style.setProperty('--page-height',h+'px');
    count=Math.max(1,Math.ceil((content.scrollWidth+40-1)/pitch));starts=Array(count).fill(null);starts[0]=0;
    for(const entry of nodes){const {node,start}=entry;if(!node.length)continue;const first=pageAt(node,0),last=pageAt(node,node.length-1);
     for(let p=first;p<=last;p++){let lo=0,hi=node.length;while(lo<hi){const mid=(lo+hi)>>>1;if(pageAt(node,mid)<p)lo=mid+1;else hi=mid;}if(lo<node.length&&(starts[p]===null||start+lo<starts[p]))starts[p]=start+lo;}
@@ -46,7 +46,15 @@ export function originalRuntime(){
  }
  document.addEventListener('keydown',e=>{if(!imageViewer)return;e.stopImmediatePropagation();if(e.key==='Escape'){e.preventDefault();closeImage();}},true);
  document.addEventListener('wheel',e=>{if(imageViewer)e.stopImmediatePropagation();},{capture:true,passive:true});
- function command(c){if(c.type==='playback'){playback=c.cursor;if(timer)layout();if(playback){closeImage();seek(playback.offset);highlight(playback.start,playback.end);}else highlight(-1,-1);return;}if(imageViewer){if(c.type==='turn')return;if(c.type==='seek')closeImage();}if(c.type==='config')apply(c.value);if(c.type==='seek'){if(timer)layout();seek(c.offset);}if(c.type==='highlight')highlight(c.start,c.end);if(c.type==='turn'){if(timer)layout();const next=page+c.delta;if(next<0||next>=count)send('boundary',{delta:c.delta});else show(next,true);}}
+ function command(c){if(c.type==='playback'){playback=c.cursor;if(timer)layout();if(playback){closeImage();seek(playback.offset);highlight(playback.start,playback.end);}else highlight(-1,-1);return;}if(imageViewer){if(c.type==='turn')return;if(c.type==='seek')closeImage();}if(c.type==='config')apply(c.value);if(c.type==='seek'){if(timer)layout();seek(c.offset);}if(c.type==='highlight')highlight(c.start,c.end);if(c.type==='turn'){if(timer)layout();const next=page+c.delta;if(next<0||next>=count)send('boundary',{delta:c.delta});else{turnAnimated();show(next,true);}}}
+ // A brief slide transition on an explicit page turn, matching a physical
+ // e-book reader; layout/seek reposition instantly (transition cleared),
+ // since those aren't reader-initiated flips.
+ function turnAnimated(){
+  if(!config.pageTurn||init.fixed)return;
+  content.style.transition='transform .24s cubic-bezier(.22,.61,.36,1)';
+  clearTimeout(turnTimer);turnTimer=setTimeout(()=>{content.style.transition='';},260);
+ }
  window.readerCommand=command;
  installDesktopInput(delta=>command({type:'turn',delta}),send);
  const receive=e=>{try{command(JSON.parse(e.data));}catch{}};document.addEventListener('message',receive);window.addEventListener('message',receive);
