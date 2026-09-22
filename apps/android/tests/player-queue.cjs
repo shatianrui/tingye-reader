@@ -113,6 +113,11 @@ const voice={provider:'glm',model:'glm-tts',voice:'tongtong',rate:1.25};
  assert.ok(envelope);assert.equal(paged.progress.estimatedSpeechOffset('甲乙丙丁',0,.1,.6,envelope),0);
  assert.equal(paged.progress.estimatedSpeechOffset('甲乙丙丁',0,.3,.6,envelope),2);
  assert.equal(paged.progress.estimatedSpeechOffset('甲乙丙丁',0,.5,.6,envelope),4);
+ // The native player's reported duration can diverge from the WAV header's
+ // (envelope.duration, always .6 here); the native-domain fraction currentTime/duration
+ // must drive the estimate, never currentTime/envelope.duration.
+ assert.equal(paged.progress.estimatedSpeechOffset('甲乙丙丁',0,.2,1.2,envelope),0,'same ratio as .1/.6 must give the same offset even though duration diverges from envelope.duration');
+ assert.equal(paged.progress.estimatedSpeechOffset('甲乙丙丁',0,.6,1.2,envelope),2,'same ratio as .3/.6 must give the same offset even though duration diverges from envelope.duration');
  assert.deepEqual(wav,original,'audio must never be trimmed or rewritten');
  assert.equal(paged.progress.wavEnvelope(new Uint8Array([1,2,3])),undefined);
  assert.deepEqual(Array.from(paged.pagination.measuredPageEnds('甲乙\n丙丁\n戊己',[{text:'甲乙',height:20},{text:'丙丁',height:20},{text:'戊己',height:20}],40)),[6,8]);
