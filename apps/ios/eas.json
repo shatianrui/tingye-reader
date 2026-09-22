@@ -25,6 +25,10 @@
         "credentialsSource": "local"
       }
     },
+    "production-remote": {
+      "autoIncrement": true,
+      "ios": {}
+    },
     "ui-verification": {
       "distribution": "internal",
       "ios": {

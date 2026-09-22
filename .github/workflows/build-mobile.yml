@@ -15,9 +15,9 @@ on:
         type: boolean
         default: true
       ios_profile:
-        description: EAS build profile for iOS
+        description: EAS build profile for iOS (production-remote uses EAS-managed credentials, no local cert/profile secrets needed)
         type: choice
-        options: [preview, production]
+        options: [preview, production, production-remote]
         default: production
       create_release:
         description: Attach built artifacts to a new GitHub Release
@@ -151,6 +151,7 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - name: Restore signing credentials
+        if: ${{ inputs.ios_profile != 'production-remote' }}
         env:
           IOS_DISTRIBUTION_CERTIFICATE_BASE64: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_BASE64 }}
           IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}

@@ -38,6 +38,8 @@ npm run build:ipa
 
 preview 使用本地提供的设备签名配置，描述文件必须包含设备 UDID，并与证书、Bundle ID 相符。商店签名使用 `pwsh -File tools/build-device.ps1 -Profile production`。两种签名不能混用。CLI 等待构建并显示产物链接；使用 -NoWait 仅提交。
 
+没有本地证书文件、但这个 EAS 项目此前已经用 Expo 托管凭据构建过时，可用 `pwsh -File tools/build-device.ps1 -Profile production-remote`：跳过 credentials.json，直接用 EAS 服务端保存的证书和描述文件（`eas.json` 里对应 `production-remote` 档位，未设置 `credentialsSource`，默认走 remote）。如果这个 app 从未托管过凭据，remote 档位会在非交互模式下失败，此时仍需本地证书或先在有 Apple 账号交互权限的机器上跑一次 `eas credentials` 完成首次托管设置。App Store Connect API 密钥（.p8）不能替代这里的证书——那是 `eas submit` 提交商店用的凭据，跟出包签名是两回事。
+
 保留 eas-build-post-install 钩子：它选择正式入口并应用 expo-audio 的 iOS 时钟修复。verification/index.tsx 仅用于模拟器样例。EAS 使用远端 build number 自动递增，以构建详情为准。TestFlight 使用 `npx eas-cli@24.6.0 submit --platform ios`，通过 CLI 配置 App Store Connect 凭据，私钥不入库。
 
 ## 网站 / Vercel
