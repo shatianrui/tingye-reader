@@ -61,14 +61,13 @@ Vercel 项目 Root Directory 设置为 apps/web；将 .env.example 对应变量�
 
 ## GitHub Actions 构建 APK / IPA
 
-`.github/workflows/build-mobile.yml` 手动触发（Actions 页 Run workflow），不随 push/PR 自动运行。Android 任务跑在 windows-latest（build-local.ps1 依赖 gradlew.bat），iOS 任务跑在 ubuntu-latest 上远程触发 EAS 云构建。两个任务各自先执行 npm ci、typecheck、test，再构建；失败会中止，不会用未通过测试的源码出包。
+`.github/workflows/build-mobile.yml` 手动触发（Actions 页 Run workflow），不随 push/PR 自动运行。Android 任务跑在 windows-latest（build-local.ps1 依赖 gradlew.bat），iOS 任务跑在 macos-latest 上直接用 Xcode 出包（不再经过 EAS/expo.dev，不需要 `EXPO_TOKEN`）：先 `expo prebuild` 现生成 `ios/` 原生工程（同 `.gitignore` 里 `/ios` 是生成产物的约定），再用 `xcodebuild archive`/`-exportArchive` 打包。两个任务各自先执行 npm ci、typecheck、test，再构建；失败会中止，不会用未通过测试的源码出包。
 
-`android_unsigned` 输入设为 true 时跳过 keystore 相关 secrets，直接用 `tools/build-local.ps1 -Unsigned` 出未签名 APK（产物为 releases/app-unsigned.apk），仅供本机安装测试，不能覆盖已签名安装的正式版本。iOS 没有等价的无证书路径：EAS 的 preview、production 两种 profile 都要求真实 Apple 证书和描述文件，没有证书时 iOS 任务只能跳过。
+`android_unsigned` 输入设为 true 时跳过 keystore 相关 secrets，直接用 `tools/build-local.ps1 -Unsigned` 出未签名 APK（产物为 releases/app-unsigned.apk），仅供本机安装测试，不能覆盖已签名安装的正式版本。iOS 对应 `ios_profile` 的 `unsigned`（默认值）：完全跳过证书/描述文件，`xcodebuild archive` 加 `CODE_SIGNING_ALLOWED=NO` 出未签名 `.app`，再手工打包成 `releases/app-unsigned.ipa`（Payload/ 结构），适合用自己的签名工具（Sideloadly/AltStore/TrollStore 等）在本机重新签名后安装，不能直接装机。`ios_profile` 设为 `adhoc` 或 `appstore` 时才需要真实 Apple 证书，在 runner 上建临时 keychain 导入证书、安装描述文件后用 `xcodebuild` 正式签名出包（`adhoc` 对应内部测试描述文件，`appstore` 对应商店/TestFlight 描述文件）。
 
 运行前在仓库 Settings → Secrets and variables → Actions 配置：
 
 - Android 签名：`ANDROID_KEYSTORE_BASE64`（release keystore 文件的 base64，例如 `base64 -w0 your.keystore`）、`ANDROID_KEY_ALIAS`、`ANDROID_STORE_PASSWORD`、`ANDROID_KEY_PASSWORD`。必须是原应用签名的同一把 keystore，否则产物无法覆盖安装线上版本。
-- iOS 签名：`IOS_DISTRIBUTION_CERTIFICATE_BASE64`（distribution.p12 的 base64）、`IOS_DISTRIBUTION_CERTIFICATE_PASSWORD`、`IOS_PROVISIONING_PROFILE_BASE64`（.mobileprovision 的 base64，需与证书、Bundle ID 相符；production profile 用于商店签名，preview profile 需包含设备 UDID）。
-- `EXPO_TOKEN`：有该 EAS 项目构建权限的访问令牌（expo.dev 账号设置里创建），用于非交互登录 EAS CLI。
+- iOS 签名（仅 `ios_profile` 为 `adhoc`/`appstore` 时需要）：`IOS_DISTRIBUTION_CERTIFICATE_BASE64`（distribution.p12 的 base64）、`IOS_DISTRIBUTION_CERTIFICATE_PASSWORD`、`IOS_PROVISIONING_PROFILE_BASE64`（.mobileprovision 的 base64，需与证书、Bundle ID 相符；appstore 用商店签名描述文件，adhoc 描述文件需包含目标设备 UDID）。
 
-任一签名密钥缺失时对应任务会在解密/构建前明确报错，不会用空值静默构建出无效或未签名产物。产物通过 workflow 的 Artifacts 下载；`create_release` 输入设为 true 时会额外把两端产物打包发布到一个新建的 GitHub Release（默认关闭，避免每次调试运行都产生公开发布）。密钥文件只落在 runner 的临时目录，iOS 任务结束时会清理 credentials.json 和证书；不要把这些密钥写回仓库或工作流以外的地方。
+任一签名密钥缺失时对应任务会在解密/构建前明确报错，不会用空值静默构建出无效或未签名产物。产物通过 workflow 的 Artifacts 下载；`create_release` 输入设为 true 时会额外把两端产物打包发布到一个新建的 GitHub Release（默认关闭，避免每次调试运行都产生公开发布）。密钥文件只落在 runner 的临时目录和临时 keychain 里，iOS 任务结束时会清理证书、描述文件和 keychain；不要把这些密钥写回仓库或工作流以外的地方。
