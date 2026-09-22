@@ -8,7 +8,7 @@
 | --- | --- | --- |
 | `apps/web` | Next.js 网站、API、数据库迁移 | 2026-09-20 生产站对应源码 |
 | `apps/android` | React Native、原生 Android、折叠屏和 DeX | 1.6.5 / 16006 |
-| `apps/ios` | React Native、iOS 文档及语音模块、跨端进度修复 | 1.7.10 / 36 |
+| `apps/ios` | React Native、iOS 文档及语音模块、跨端进度修复 | 1.7.11 / 37 |
 | `docs` | 构建、发布及维护说明 | — |
 
 各工程保留独立 package-lock.json，在对应目录运行 npm。两端不是完全相同的代码版本：云端备份/同步核心（library.ts、native-library.ts）已在双端统一并测试；iOS 仍领先于朗读跟读高亮等阅读器修复，维护时应逐项移植并测试，不能直接覆盖整个目录。

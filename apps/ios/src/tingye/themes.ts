@@ -11,6 +11,8 @@ export const readingThemes: ReadingTheme[] = [
   {id:'lilac',name:'暮紫',dark:false,background:'#E8E1EF',surface:'#F3EDF7',text:'#44374F',muted:'#7A6685',line:'#DCD0E5',accent:'#6B4D80',onAccent:'#FFFFFF',highlight:'#DFCEEB'},
   {id:'forest',name:'深林',dark:true,background:'#17251F',surface:'#1C2D24',text:'#DDDCCD',muted:'#A2B2A6',line:'#344A3B',accent:'#A8C4AC',onAccent:'#17251F',highlight:'#566446'},
   {id:'ink',name:'墨夜',dark:true,background:'#121214',surface:'#000000',text:'#BABCC0',muted:'#94979E',line:'#2A2D33',accent:'#719CE0',onAccent:'#101A2B',highlight:'#293C58'},
+  // No hue anywhere — matches an E Ink Kindle-style panel, not just a light theme.
+  {id:'eink',name:'墨水屏',dark:false,background:'#F6F5F1',surface:'#FBFAF8',text:'#161616',muted:'#5C5C5A',line:'#D6D5D0',accent:'#2B2B2A',onAccent:'#F6F5F1',highlight:'#D6D5CE'},
 ];
 export function readingTheme(id?:string, legacyNight=false) {
   return readingThemes.find(theme=>theme.id===id)??readingThemes[legacyNight?6:0];

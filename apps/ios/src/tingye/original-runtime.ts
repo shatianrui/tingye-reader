@@ -46,14 +46,23 @@ export function originalRuntime(){
  }
  document.addEventListener('keydown',e=>{if(!imageViewer)return;e.stopImmediatePropagation();if(e.key==='Escape'){e.preventDefault();closeImage();}},true);
  document.addEventListener('wheel',e=>{if(imageViewer)e.stopImmediatePropagation();},{capture:true,passive:true});
- function command(c){if(c.type==='playback'){playback=c.cursor;if(timer)layout();if(playback){closeImage();seek(playback.offset);highlight(playback.start,playback.end);}else highlight(-1,-1);return;}if(imageViewer){if(c.type==='turn')return;if(c.type==='seek')closeImage();}if(c.type==='config')apply(c.value);if(c.type==='seek'){if(timer)layout();seek(c.offset);}if(c.type==='highlight')highlight(c.start,c.end);if(c.type==='turn'){if(timer)layout();const next=page+c.delta;if(next<0||next>=count)send('boundary',{delta:c.delta});else{turnAnimated();show(next,true);}}}
- // A brief slide transition on an explicit page turn, matching a physical
- // e-book reader; layout/seek reposition instantly (transition cleared),
- // since those aren't reader-initiated flips.
- function turnAnimated(){
-  if(!config.pageTurn||init.fixed)return;
+ function command(c){if(c.type==='playback'){playback=c.cursor;if(timer)layout();if(playback){closeImage();seek(playback.offset);highlight(playback.start,playback.end);}else highlight(-1,-1);return;}if(imageViewer){if(c.type==='turn')return;if(c.type==='seek')closeImage();}if(c.type==='config')apply(c.value);if(c.type==='seek'){if(timer)layout();seek(c.offset);}if(c.type==='highlight')highlight(c.start,c.end);if(c.type==='turn'){if(timer)layout();const next=page+c.delta;if(next<0||next>=count){send('boundary',{delta:c.delta});return;}if(config.pageTurnStyle==='eink'&&!init.fixed)turnEinkFlash(()=>show(next,true));else{turnSlide();show(next,true);}}}
+ // Two page-turn styles for an explicit turn; layout/seek reposition
+ // instantly either way (no reader-initiated flip involved).
+ // Slide: a brief transform transition, like a physical e-book reader.
+ function turnSlide(){
+  if(config.pageTurnStyle!=='slide'||init.fixed)return;
   content.style.transition='transform .24s cubic-bezier(.22,.61,.36,1)';
   clearTimeout(turnTimer);turnTimer=setTimeout(()=>{content.style.transition='';},260);
+ }
+ // E Ink: a short dark flash brackets the (instant) page swap, matching the
+ // full-panel refresh flicker of a Kindle-style electrophoretic display.
+ function turnEinkFlash(swap){
+  const flash=document.createElement('div');
+  flash.style.cssText='position:fixed;inset:0;background:#161616;opacity:0;pointer-events:none;z-index:2147483000;transition:opacity 70ms linear';
+  document.body.append(flash);
+  requestAnimationFrame(()=>{flash.style.opacity='1';});
+  setTimeout(()=>{swap();requestAnimationFrame(()=>{flash.style.opacity='0';});setTimeout(()=>flash.remove(),160);},90);
  }
  window.readerCommand=command;
  installDesktopInput(delta=>command({type:'turn',delta}),send);
