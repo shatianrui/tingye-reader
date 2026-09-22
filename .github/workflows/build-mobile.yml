@@ -252,10 +252,17 @@ jobs:
         id: ipa
         run: |
           set -euo pipefail
-          mapfile -t ipas < <(find releases -maxdepth 1 -type f -name '*.ipa' | sort)
+          # macOS runners ship bash 3.2 (no `mapfile`, added in bash 4); build the
+          # array with a read loop instead so this works there.
+          ipas=()
+          while IFS= read -r file; do
+            ipas+=("$file")
+          done < <(find releases -maxdepth 1 -type f -name '*.ipa' | sort)
           if [ "${#ipas[@]}" -ne 1 ]; then
             echo "Expected exactly one IPA in releases/, found ${#ipas[@]}" >&2
-            printf '%s\n' "${ipas[@]}" >&2
+            # bash 3.2 (macOS) treats "${ipas[@]}" on a truly empty array as an
+            # unbound variable under `set -u`, so only expand it when non-empty.
+            if [ "${#ipas[@]}" -gt 0 ]; then printf '%s\n' "${ipas[@]}" >&2; fi
             exit 1
           fi
           echo "path=apps/ios/${ipas[0]}" >> "$GITHUB_OUTPUT"
