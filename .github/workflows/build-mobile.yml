@@ -237,18 +237,37 @@ jobs:
             archive
           mkdir -p releases/Payload
           cp -R "$RUNNER_TEMP/app.xcarchive/Products/Applications/app.app" releases/Payload/
-          (cd releases && zip -qry app-unsigned.ipa Payload)
+          # zip -y and macOS extra fields (0x7875) make Windows Explorer report the
+          # archive as invalid ("无法打开压缩文件夹"). -X strips those fields; do not
+          # store symlinks. Payload must stay at the archive root.
+          (cd releases && zip -r -X app-unsigned.ipa Payload)
+          unzip -tqq releases/app-unsigned.ipa
           rm -rf releases/Payload
       - name: Clean up signing material
         if: always()
         run: |
           security delete-keychain "$RUNNER_TEMP/build.keychain-db" 2>/dev/null || true
           rm -f "$RUNNER_TEMP/distribution.p12" "$RUNNER_TEMP/profile.mobileprovision"
-      - uses: actions/upload-artifact@v4
+      - name: Resolve IPA path
+        id: ipa
+        run: |
+          set -euo pipefail
+          mapfile -t ipas < <(find releases -maxdepth 1 -type f -name '*.ipa' | sort)
+          if [ "${#ipas[@]}" -ne 1 ]; then
+            echo "Expected exactly one IPA in releases/, found ${#ipas[@]}" >&2
+            printf '%s\n' "${ipas[@]}" >&2
+            exit 1
+          fi
+          echo "path=apps/ios/${ipas[0]}" >> "$GITHUB_OUTPUT"
+      # archive: false uploads the IPA bytes directly. The default artifact zip is
+      # a second archive (data-descriptor deflate) around an already-zipped IPA;
+      # Windows Explorer reports that download as a corrupt compressed file.
+      # Artifact name becomes the IPA filename; the name input is ignored.
+      - uses: actions/upload-artifact@v7.0.1
         with:
-          name: ios-ipa
-          path: apps/ios/releases/*.ipa
-          if-no-files-found: warn
+          path: ${{ steps.ipa.outputs.path }}
+          archive: false
+          if-no-files-found: error
   release:
     needs: [android, ios]
     if: >-
@@ -259,7 +278,8 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      # v8 skips unzip when the artifact is a raw file (iOS archive: false).
+      - uses: actions/download-artifact@v8.0.1
         with:
           path: dist
       - uses: softprops/action-gh-release@v2
