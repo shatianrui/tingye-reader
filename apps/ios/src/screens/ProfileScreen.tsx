@@ -256,7 +256,7 @@ export default function ProfileScreen() {
             { color: theme.colors.onSurfaceVariant },
           ]}
         >
-          听页 · v{appConfig.expo.version} · iPhone
+          听页 · v{appConfig.expo.version} ({appConfig.expo.ios.buildNumber}) · iPhone
         </Text>
       </ScrollView>
     </View>

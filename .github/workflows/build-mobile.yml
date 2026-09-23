@@ -266,6 +266,16 @@ jobs:
             exit 1
           fi
           echo "path=apps/ios/${ipas[0]}" >> "$GITHUB_OUTPUT"
+      - name: Show built app version
+        # Read back what actually shipped inside the IPA, so a device showing an
+        # older version can be told apart from a stale artifact at a glance.
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          rm -rf "$RUNNER_TEMP/ipa-check"
+          unzip -q "$GITHUB_WORKSPACE/${{ steps.ipa.outputs.path }}" 'Payload/*.app/Info.plist' -d "$RUNNER_TEMP/ipa-check"
+          plist=$(ls "$RUNNER_TEMP"/ipa-check/Payload/*.app/Info.plist)
+          echo "IPA: v$(plutil -extract CFBundleShortVersionString raw "$plist") ($(plutil -extract CFBundleVersion raw "$plist")) · $(plutil -extract CFBundleIdentifier raw "$plist")" | tee -a "$GITHUB_STEP_SUMMARY"
       # archive: false uploads the IPA bytes directly. The default artifact zip is
       # a second archive (data-descriptor deflate) around an already-zipped IPA;
       # Windows Explorer reports that download as a corrupt compressed file.
