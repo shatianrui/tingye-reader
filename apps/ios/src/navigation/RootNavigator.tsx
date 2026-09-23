@@ -24,9 +24,9 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<TabParamList>();
 
 const TAB_DEFS: { key: keyof TabParamList; icon: string; label: string }[] = [
-  { key: 'Discover', icon: '◯', label: '发现' },
-  { key: 'Shelf', icon: '☰', label: '书架' },
-  { key: 'Profile', icon: '◔', label: '我' },
+  { key: 'Discover', icon: 'discover', label: '发现' },
+  { key: 'Shelf', icon: 'shelf', label: '书架' },
+  { key: 'Profile', icon: 'profile', label: '我' },
 ];
 
 function Tabs() {

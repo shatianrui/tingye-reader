@@ -1,10 +1,11 @@
 import {ReaderPanel} from './ReaderPanel';
 import appConfig from '../../app.json';
-import {ReaderButton,ReaderTool,ReaderErrorBanner} from './ReaderControls';
+import {ReaderButton,ReaderTool,ReaderErrorBanner,ReaderSection,ReaderSegmented} from './ReaderControls';
+import {Icon} from '../components/Icon';
 import {styles} from './reader-styles';
 import { DisplayText as Text } from '../components/DisplayText';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, AppState, BackHandler, FlatList, Linking, Pressable, ScrollView, StyleSheet, TextInput, View, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, Alert, AppState, BackHandler, FlatList, Linking, Pressable, ScrollView, StyleSheet, Switch, TextInput, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import * as DocumentPicker from 'expo-document-picker';
@@ -187,9 +188,9 @@ export default function ReaderApplication({services=readerServices}:{services?:R
  if(initializing)return <SafeAreaView style={[styles.page,{backgroundColor:colors.background}]}><ActivityIndicator style={{flex:1}} color={colors.accent}/></SafeAreaView>;
  return <SafeAreaView edges={identity&&!book?['left','right']:['top','bottom','left','right']} style={[styles.page,{backgroundColor:book?colors.surface:chrome.colors.background}]}><StatusBar style={(book?colors.dark:chrome.scheme==='dark')?'light':'dark'}/>
   {!book&&!identity&&<View style={[styles.header,{borderBottomColor:colors.line}]}>
-   {book?<Pressable accessibilityRole="button" accessibilityLabel="返回书架" onPress={()=>{returnToShelf();}} style={styles.iconButton}><Text style={{fontSize:32,color:colors.text}}>‹</Text></Pressable>:<Text style={{fontSize:16,fontWeight:'700',color:colors.accent}}>听页</Text>}
+   {book?<Pressable accessibilityRole="button" accessibilityLabel="返回书架" onPress={()=>{returnToShelf();}} style={styles.iconButton}><Icon name="back" size={26} color={colors.text}/></Pressable>:<Text style={{fontSize:16,fontWeight:'700',color:colors.accent}}>听页</Text>}
    <Text numberOfLines={1} style={[styles.headerTitle,{color:colors.text}]}>{title}</Text>
-   <Pressable accessibilityRole="button" accessibilityLabel="设置" onPress={openSettings} style={styles.iconButton}><Text style={{fontSize:23,color:colors.text}}>⋯</Text></Pressable>
+   <Pressable accessibilityRole="button" accessibilityLabel="设置" onPress={openSettings} style={styles.iconButton}><Icon name="more" size={24} color={colors.text}/></Pressable>
   </View>}
   {!!notice&&(!!book||!identity)&&<Pressable onPress={()=>setNotice('')}><Text selectable style={[styles.notice,{color:colors.text,backgroundColor:colors.highlight}]}>{notice}</Text></Pressable>}
   {!identity?<AccountScreen colors={colors} onSignedIn={signedIn}/>:<View style={{flex:1,display:book?'none':'flex'}}><LibraryUIContext.Provider value={{books:presentedBooks,nativeBooks:books,username:identity.username,busy,notice,...metrics,
@@ -212,50 +213,80 @@ export default function ReaderApplication({services=readerServices}:{services?:R
 
     </View>
     <View style={[styles.readingFooter,{height:layout.compactHeight?48:60,paddingHorizontal:layout.gutter,width:layout.contentWidth+2*layout.gutter,alignSelf:'center'}]}>
-      <Pressable accessibilityRole="button" accessibilityLabel={controlsVisible?'隐藏功能栏':'显示功能栏'} onPress={toggleControls} style={styles.readingProgress}><Text style={{fontSize:11,color:colors.muted}}>第 {chapter+1} / {book.chapters.length} 章 · {pageIndex+1} / {readerPage.count} 页</Text><Text numberOfLines={1} style={{fontSize:10,color:colors.muted,marginTop:4}}>{player.active?(player.timingNotice?'整句高亮 · 进度估算':'整句高亮 · 朗读同步'):layout.desktop?'正文内：← → / PgUp PgDn 翻页 · 空格 听/停 · M 菜单 · Esc 隐藏':'轻点正文显隐菜单 · 左右滑动翻页'}</Text></Pressable>
+      <Pressable accessibilityRole="button" accessibilityLabel={controlsVisible?'隐藏功能栏':'显示功能栏'} onPress={toggleControls} style={styles.readingProgress}><Text style={{fontSize:12,color:colors.muted}}>第 {chapter+1} / {book.chapters.length} 章 · {pageIndex+1} / {readerPage.count} 页</Text><Text numberOfLines={1} style={{fontSize:12,color:colors.muted,marginTop:3}}>{player.active?(player.timingNotice?'整句高亮 · 进度估算':'整句高亮 · 朗读同步'):layout.desktop?'正文内：← → / PgUp PgDn 翻页 · 空格 听/停 · M 菜单 · Esc 隐藏':'轻点正文显隐菜单 · 左右滑动翻页'}</Text></Pressable>
       {layout.desktop&&<View style={{flexDirection:'row',gap:8,marginRight:12}}><ReaderButton colors={colors} label="上一页" onPress={()=>turn(-1)}/><ReaderButton colors={colors} label="下一页" onPress={()=>turn(1)}/></View>}
-      {!controlsVisible&&<Pressable accessibilityRole="button" accessibilityLabel={player.active&&!player.paused?'暂停朗读':'开始朗读'} onPress={play} style={[styles.listenBubble,{backgroundColor:colors.accent}]}>{player.buffering&&!player.paused?<ActivityIndicator color={colors.onAccent}/>:<Text style={{color:colors.onAccent,fontSize:21,fontWeight:'500'}}>{player.active&&!player.paused?'Ⅱ':'听'}</Text>}</Pressable>}
+      {!controlsVisible&&<Pressable accessibilityRole="button" accessibilityLabel={player.active&&!player.paused?'暂停朗读':'开始朗读'} onPress={play} style={[styles.listenBubble,{backgroundColor:colors.accent}]}>{player.buffering&&!player.paused?<ActivityIndicator color={colors.onAccent}/>:player.active&&!player.paused?<Icon name="pause" size={18} color={colors.onAccent}/>:<Text style={{color:colors.onAccent,fontSize:21,fontWeight:'500'}}>听</Text>}</Pressable>}
     </View>
     {controlsVisible&&<>
       <View testID="reader-top-toolbar" style={[styles.readerTopToolbar,{left:(width-layout.controlsWidth)/2,right:(width-layout.controlsWidth)/2,backgroundColor:colors.background,borderBottomColor:colors.line}]}>
-        <Pressable accessibilityRole="button" accessibilityLabel="返回书架" onPress={()=>{returnToShelf();}} style={styles.iconButton}><Text style={{fontSize:32,color:colors.text}}>‹</Text></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="返回书架" onPress={()=>{returnToShelf();}} style={styles.iconButton}><Icon name="back" size={26} color={colors.text}/></Pressable>
         <Text numberOfLines={1} style={{flex:1,fontSize:16,fontWeight:'600',color:colors.text}}>{book.title}</Text>
-        <Pressable accessibilityRole="button" accessibilityLabel="设置" onPress={openSettings} style={styles.iconButton}><Text style={{fontSize:25,color:colors.text}}>⋯</Text></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="设置" onPress={openSettings} style={styles.iconButton}><Icon name="more" size={24} color={colors.text}/></Pressable>
       </View>
       <View testID="reader-bottom-toolbar" style={[styles.readerBottomToolbar,{left:(width-layout.controlsWidth)/2,right:(width-layout.controlsWidth)/2,paddingHorizontal:width<360?10:22,backgroundColor:colors.background,borderTopColor:colors.line}]}>
-        <View style={styles.readerPageNavigation}><Pressable accessibilityRole="button" accessibilityLabel="上一页" onPress={()=>turn(-1)} style={styles.iconButton}><Text style={{color:colors.text}}>‹ 上一页</Text></Pressable><Text style={{fontSize:12,color:colors.muted}}>{pageIndex+1} / {readerPage.count}</Text><Pressable accessibilityRole="button" accessibilityLabel="下一页" onPress={()=>turn(1)} style={styles.iconButton}><Text style={{color:colors.text}}>下一页 ›</Text></Pressable></View>
+        <View style={styles.readerPageNavigation}>
+          <Pressable accessibilityRole="button" accessibilityLabel="上一页" onPress={()=>turn(-1)} style={({pressed})=>[styles.pageNavButton,{backgroundColor:colors.surface,borderWidth:StyleSheet.hairlineWidth,borderColor:colors.line,opacity:pressed?0.7:1}]}><Icon name="back" size={20} color={colors.text}/></Pressable>
+          <View style={{flex:1,gap:6}}>
+            <View style={[styles.pageTrack,{backgroundColor:colors.line}]}><View style={{height:'100%',width:`${Math.round(100*(pageIndex+1)/Math.max(1,readerPage.count))}%`,backgroundColor:colors.accent}}/></View>
+            <Text style={{fontSize:12,color:colors.muted,textAlign:'center'}}>本章 {pageIndex+1} / {readerPage.count} 页</Text>
+          </View>
+          <Pressable accessibilityRole="button" accessibilityLabel="下一页" onPress={()=>turn(1)} style={({pressed})=>[styles.pageNavButton,{backgroundColor:colors.surface,borderWidth:StyleSheet.hairlineWidth,borderColor:colors.line,opacity:pressed?0.7:1}]}><Icon name="forward" size={20} color={colors.text}/></Pressable>
+        </View>
         <View style={styles.readerTools}>
-          <ReaderTool colors={colors} symbol="☰" label="目录" onPress={()=>setPanel('toc')}/>
-          <ReaderTool colors={colors} symbol={colors.dark?'☼':'☾'} label={colors.dark?'日间':'夜间'} onPress={()=>setPrefs(p=>({...p,theme:colors.dark?'paper':'ink'}))}/>
-          <Pressable accessibilityRole="button" accessibilityLabel={player.active&&!player.paused?'暂停朗读':'开始朗读'} onPress={play} style={[styles.listenBubble,{backgroundColor:colors.accent}]}>{player.buffering&&!player.paused?<ActivityIndicator color={colors.onAccent}/>:<Text style={{color:colors.onAccent,fontSize:21}}>{player.active&&!player.paused?'Ⅱ':'听'}</Text>}</Pressable>
-          <ReaderTool colors={colors} symbol="Aa" label="字体 / 排版" onPress={openSettings}/>
+          <ReaderTool colors={colors} icon="list" label="目录" onPress={()=>setPanel('toc')}/>
+          <ReaderTool colors={colors} icon={colors.dark?'sun':'moon'} label={colors.dark?'日间':'夜间'} onPress={()=>setPrefs(p=>({...p,theme:colors.dark?'paper':'ink'}))}/>
+          <Pressable accessibilityRole="button" accessibilityLabel={player.active&&!player.paused?'暂停朗读':'开始朗读'} onPress={play} style={({pressed})=>[styles.listenPill,{backgroundColor:colors.accent,opacity:pressed?0.85:1}]}>{player.buffering&&!player.paused?<ActivityIndicator color={colors.onAccent}/>:<><Icon name={player.active&&!player.paused?'pause':'play'} size={16} color={colors.onAccent}/><Text style={{color:colors.onAccent,fontSize:16,fontWeight:'600'}}>{player.active&&!player.paused?'暂停':'听书'}</Text></>}</Pressable>
+          <ReaderTool colors={colors} symbol="Aa" label="字体" onPress={openSettings}/>
           <ReaderTool colors={colors} symbol={prefs.voice.rate+"×"} label="语速" onPress={()=>{setDraftVoice({...prefs.voice});setPanel('rate');}}/>
         </View>
       </View>
     </>}
-    {!!player.error&&<ReaderErrorBanner colors={colors} message={player.error} bottom={controlsVisible?120:66} onOpenSettings={openSettings} onRetry={()=>{void play();}}/>}
+    {!!player.error&&<ReaderErrorBanner colors={colors} message={player.error} bottom={controlsVisible?140:66} onOpenSettings={openSettings} onRetry={()=>{void play();}}/>}
   </View>}
   <ReaderPanel visible={!!panel} title={panel==='toc'?'目录':panel==='rate'?'朗读语速':'阅读与听书设置'} colors={colors} width={width} wide={layout.widePanel} panelWidth={layout.panelWidth} onClose={closePanel}>
-    {panel==='rate'?<ScrollView contentContainerStyle={{padding:24,gap:20}}><Text style={{color:colors.text,fontSize:18}}>当前语速 {prefs.voice.rate}×</Text><View style={styles.chips}>{[.5,.75,1,1.25,1.5,1.75,2].map(rate=><ReaderButton colors={colors} key={rate} label={rate+'×'} primary={prefs.voice.rate===rate} onPress={()=>changeRate(rate)}/>)}</View><Text style={{color:colors.muted}}>调整后立即应用；本地语音从当前词语继续朗读。</Text></ScrollView>:panel==='toc'?<FlatList data={book?.chapters} keyExtractor={(_,i)=>String(i)} renderItem={({item,index})=><Pressable accessibilityRole="button" onPress={()=>jump(index)} style={[styles.tocRow,{borderBottomColor:colors.line,backgroundColor:chapter===index?colors.highlight:undefined}]}><Text style={{color:colors.text,fontSize:17}}>{index+1}　{item.title}</Text></Pressable>}/>:<ScrollView contentContainerStyle={{padding:24,gap:20}} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" automaticallyAdjustKeyboardInsets>
+    {panel==='rate'?<ScrollView contentContainerStyle={{padding:24,gap:20}}><Text style={{color:colors.text,fontSize:18}}>当前语速 {prefs.voice.rate}×</Text><View style={styles.chips}>{[.5,.75,1,1.25,1.5,1.75,2].map(rate=><ReaderButton colors={colors} key={rate} label={rate+'×'} primary={prefs.voice.rate===rate} onPress={()=>changeRate(rate)}/>)}</View><Text style={{color:colors.muted}}>调整后立即应用；本地语音从当前词语继续朗读。</Text></ScrollView>:panel==='toc'?<FlatList data={book?.chapters} keyExtractor={(_,i)=>String(i)} renderItem={({item,index})=><Pressable accessibilityRole="button" onPress={()=>jump(index)} style={[styles.tocRow,{borderBottomColor:colors.line,backgroundColor:chapter===index?colors.highlight:undefined}]}><Text style={{color:colors.text,fontSize:17}}>{index+1}　{item.title}</Text></Pressable>}/>:<ScrollView contentContainerStyle={{padding:16,gap:14}} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" automaticallyAdjustKeyboardInsets>
      {player.active&&<View style={[styles.settingsPlayback,{borderColor:colors.line,backgroundColor:colors.surface}]}><View style={{flex:1}}><Text style={{color:colors.text,fontWeight:'600'}}>{player.paused?'已暂停':player.buffering?'正在准备声音…':'听书继续播放中'}</Text><Text style={{color:colors.muted,fontSize:12,marginTop:6}}>调整字号和背景不会中断声音</Text></View><ReaderButton colors={colors} label={player.paused?'继续':'暂停'} onPress={()=>readerPlayer.togglePause()}/></View>}
-     <Text style={[styles.label,{color:colors.muted}]}>书籍排版</Text><View style={styles.chips}><ReaderButton colors={colors} label="原书图文" primary={prefs.originalLayout} onPress={()=>setPrefs(p=>({...p,originalLayout:true}))}/><ReaderButton colors={colors} label="自定义阅读" primary={!prefs.originalLayout} onPress={()=>setPrefs(p=>({...p,originalLayout:false}))}/></View><Text style={{color:colors.muted,fontSize:13}}>原书图文保留 EPUB 样式、图片和表格。切换自定义阅读可应用下方字体、行距；PDF 保留原始页面，可双指缩放。</Text>
-     <Text style={[styles.label,{color:colors.muted}]}>展开阅读</Text><View style={styles.chips}><ReaderButton colors={colors} label="自动双页" primary={prefs.spreadMode!=='single'} onPress={()=>setPrefs(p=>({...p,spreadMode:'auto'}))}/><ReaderButton colors={colors} label="始终单页" primary={prefs.spreadMode==='single'} onPress={()=>setPrefs(p=>({...p,spreadMode:'single'}))}/></View><Text style={{color:colors.muted,fontSize:13}}>宽屏自动并排显示两页，合屏回到单页并保留当前阅读位置。PDF 和固定版式 EPUB 保留原页。</Text>
-     <Text style={[styles.label,{color:colors.muted}]}>翻页方式</Text><View style={styles.chips}>{([['slide','拟真翻页'],['eink','墨水屏刷新'],['instant','直接切换']] as const).map(([key,label])=><ReaderButton colors={colors} key={key} label={label} primary={prefs.pageTurnStyle===key} onPress={()=>setPrefs(p=>({...p,pageTurnStyle:key}))}/>)}</View><Text style={{color:colors.muted,fontSize:13}}>拟真翻页是轻微滑动过渡；墨水屏刷新模拟 Kindle 这类电子墨水屏翻页时的短暂黑闪，配合下面的「墨水屏」背景最像真实电子书；直接切换没有过渡，翻页最快。</Text>
-     <Text style={[styles.label,{color:colors.muted}]}>阅读时屏幕常亮</Text><View style={styles.chips}><ReaderButton colors={colors} label="开启" primary={prefs.keepAwake} onPress={()=>setPrefs(p=>({...p,keepAwake:true}))}/><ReaderButton colors={colors} label="关闭" primary={!prefs.keepAwake} onPress={()=>setPrefs(p=>({...p,keepAwake:false}))}/></View><Text style={{color:colors.muted,fontSize:13}}>开启后，打开书籍阅读时屏幕不会自动熄灭；离开书籍或退出 App 后恢复系统设置。</Text>
-     <Text style={[styles.label,{color:colors.muted}]}>字号</Text><View style={styles.chips}><ReaderButton colors={colors} label="A−" onPress={()=>setPrefs(p=>({...p,originalLayout:false,fontSize:Math.max(16,p.fontSize-2)}))}/><Text style={{alignSelf:'center',color:colors.text,minWidth:32,textAlign:'center'}}>{prefs.fontSize}</Text><ReaderButton colors={colors} label="A＋" onPress={()=>setPrefs(p=>({...p,originalLayout:false,fontSize:Math.min(30,p.fontSize+2)}))}/></View>
-     <ReadingTypographySettings value={prefs.typography} onChange={typography=>setPrefs(p=>({...p,typography,originalLayout:false}))} colors={colors} fontSize={prefs.fontSize} fontsReady={!!fontsReady}/>
-     <Text style={[styles.label,{color:colors.muted}]}>阅读背景</Text><View style={styles.chips}>{readingThemes.map(theme=><Pressable key={theme.id} accessibilityRole="button" accessibilityLabel={theme.name} accessibilityState={{selected:prefs.theme===theme.id}} onPress={()=>setPrefs(p=>({...p,theme:theme.id}))} style={[styles.themeCard,{backgroundColor:theme.surface,borderColor:prefs.theme===theme.id?colors.accent:colors.line,borderWidth:prefs.theme===theme.id?2:1}]}><Text style={{fontSize:23,color:theme.text}}>文</Text><Text style={{fontSize:13,color:theme.text,marginTop:8,alignSelf:'stretch',textAlign:'center',marginHorizontal:4}}>{theme.name}{prefs.theme===theme.id?' ✓':''}</Text></Pressable>)}</View>
-     <Text style={[styles.label,{color:colors.muted}]}>语速</Text><View style={styles.chips}>{[.5,.75,1,1.25,1.5,1.75,2].map(rate=><ReaderButton colors={colors} key={rate} label={rate+'×'} primary={prefs.voice.rate===rate} onPress={()=>changeRate(rate)}/>)}</View>
-     <Text style={{color:colors.muted,lineHeight:22,fontSize:13}}>{prefs.voice.provider==='system'?'本地语音立即应用新语速，从当前词语继续。':'语速立即生效，保留当前播放位置。1× 更接近音色原本的节奏。'}</Text>
-     {player.active&&!!player.timingNotice&&<Text style={{color:colors.muted,lineHeight:22}}>{player.timingNotice} 高亮始终显示整句，翻页跟随句内朗读位置。GLM 时间戳在后台分析，不等待识别即可播放；未取得时间戳时使用估算进度。</Text>}
-     <CloudConnection colors={colors}/>
-     <Text style={[styles.label,{color:colors.muted}]}>语音服务</Text><View style={styles.chips}>{(['system','glm','minimax'] as const).map((provider,i)=><ReaderButton colors={colors} key={provider} label={['本地语音','GLM','MiniMax'][i]} primary={draftVoice.provider===provider} onPress={()=>chooseProvider(provider)}/>)}</View>
-     {draftVoice.provider!=='system'&&<><Text style={[styles.label,{color:colors.muted}]}>模型</Text><TextInput value={draftVoice.model} editable={false} onChangeText={model=>changeVoice({...draftVoice,model})} autoCapitalize="none" style={[styles.input,{color:colors.text,borderColor:colors.line}]}/></>}
-     {draftVoice.provider==='minimax'&&<><Text style={{color:colors.muted}}>中国区 · 使用服务端密钥</Text><ReaderButton colors={colors} label={voicesBusy?'正在获取音色…':'刷新全部音色'} disabled={voicesBusy} onPress={()=>{void loadMiniVoices();}}/>{!!voiceNotice&&<Text style={{color:colors.muted}}>{voiceNotice}</Text>}</>}
-     <Text style={[styles.label,{color:colors.muted}]}>音色</Text><View style={styles.chips}>{selectedVoices.map(v=><ReaderButton colors={colors} key={v.value} label={v.label} primary={draftVoice.voice===v.value} onPress={()=>changeVoice({...draftVoice,voice:v.value})}/>)}</View>
-     {draftVoice.provider!=='system'&&<TextInput value={draftVoice.voice} onChangeText={voice=>changeVoice({...draftVoice,voice})} placeholder="音色名称 / 自定义音色 ID" placeholderTextColor={colors.muted} autoCapitalize="none" style={[styles.input,{color:colors.text,borderColor:colors.line}]}/>}
-     <Text style={{color:colors.muted,lineHeight:24}}>点“完成”后应用模型和音色。正在听书时会从当前句重新开始；已暂停时保持暂停。云端语音按段落预合成，GLM 和 MiniMax 均使用服务端密钥。</Text>
-     {identity&&<><Text selectable style={{color:colors.text}}>当前账号：{identity.username}</Text><Text style={{color:colors.muted}}>听页 {appConfig.expo.version} · 本机书籍 · 云端进度同步</Text><ReaderButton colors={colors} label="退出登录 / 切换账号" onPress={()=>{void logout();}}/></>}
+     <ReaderSection colors={colors} title="外观">
+      <Text style={[styles.label,{color:colors.text}]}>阅读背景</Text>
+      <View style={styles.chips}>{readingThemes.map(theme=><Pressable key={theme.id} accessibilityRole="button" accessibilityLabel={theme.name} accessibilityState={{selected:prefs.theme===theme.id}} onPress={()=>setPrefs(p=>({...p,theme:theme.id}))} style={[styles.themeCard,{backgroundColor:theme.surface,borderColor:prefs.theme===theme.id?colors.accent:colors.line,borderWidth:prefs.theme===theme.id?2:1}]}><Text style={{fontSize:23,color:theme.text}}>文</Text><Text style={{fontSize:13,color:theme.text,marginTop:8,alignSelf:'stretch',textAlign:'center',marginHorizontal:4}}>{theme.name}{prefs.theme===theme.id?' ✓':''}</Text></Pressable>)}</View>
+      <View style={styles.settingsRow}><Text style={[styles.label,{color:colors.text}]}>字号</Text><View style={{flexDirection:'row',alignItems:'center',gap:8}}><ReaderButton colors={colors} label="A−" onPress={()=>setPrefs(p=>({...p,originalLayout:false,fontSize:Math.max(16,p.fontSize-2)}))}/><Text style={{color:colors.text,minWidth:32,textAlign:'center',fontSize:16,fontWeight:'600'}}>{prefs.fontSize}</Text><ReaderButton colors={colors} label="A＋" onPress={()=>setPrefs(p=>({...p,originalLayout:false,fontSize:Math.min(30,p.fontSize+2)}))}/></View></View>
+      <ReadingTypographySettings value={prefs.typography} onChange={typography=>setPrefs(p=>({...p,typography,originalLayout:false}))} colors={colors} fontSize={prefs.fontSize} fontsReady={!!fontsReady}/>
+     </ReaderSection>
+     <ReaderSection colors={colors} title="翻页与版式">
+      <Text style={[styles.label,{color:colors.text}]}>翻页方式</Text>
+      <ReaderSegmented colors={colors} options={[['slide','拟真翻页'],['eink','墨水屏刷新'],['instant','直接切换']] as const} value={prefs.pageTurnStyle} onChange={pageTurnStyle=>setPrefs(p=>({...p,pageTurnStyle}))}/>
+      <Text style={[styles.settingsHint,{color:colors.muted}]}>{prefs.pageTurnStyle==='eink'?'模拟 Kindle 电子墨水屏翻页时的短暂黑闪，配合「墨水屏」背景最像真实电子书。':prefs.pageTurnStyle==='instant'?'没有过渡，翻页最快。':'翻页时加一个轻微的滑动过渡，更有翻书的手感。'}</Text>
+      <Text style={[styles.label,{color:colors.text}]}>展开阅读</Text>
+      <ReaderSegmented colors={colors} options={[['auto','自动双页'],['single','始终单页']] as const} value={prefs.spreadMode==='single'?'single':'auto'} onChange={spreadMode=>setPrefs(p=>({...p,spreadMode}))}/>
+      <Text style={[styles.settingsHint,{color:colors.muted}]}>宽屏自动并排显示两页，合屏回到单页并保留当前阅读位置。PDF 和固定版式 EPUB 保留原页。</Text>
+      <Text style={[styles.label,{color:colors.text}]}>书籍排版</Text>
+      <ReaderSegmented colors={colors} options={[['original','原书图文'],['custom','自定义阅读']] as const} value={prefs.originalLayout?'original':'custom'} onChange={value=>setPrefs(p=>({...p,originalLayout:value==='original'}))}/>
+      <Text style={[styles.settingsHint,{color:colors.muted}]}>原书图文保留 EPUB 样式、图片和表格。切换自定义阅读可应用上方字体、行距；PDF 保留原始页面，可双指缩放。</Text>
+     </ReaderSection>
+     <ReaderSection colors={colors} title="听书">
+      <Text style={[styles.label,{color:colors.text}]}>语速</Text>
+      <View style={styles.chips}>{[.5,.75,1,1.25,1.5,1.75,2].map(rate=><ReaderButton colors={colors} key={rate} label={rate+'×'} primary={prefs.voice.rate===rate} onPress={()=>changeRate(rate)}/>)}</View>
+      <Text style={[styles.settingsHint,{color:colors.muted}]}>{prefs.voice.provider==='system'?'本地语音立即应用新语速，从当前词语继续。':'语速立即生效，保留当前播放位置。1× 更接近音色原本的节奏。'}</Text>
+      {player.active&&!!player.timingNotice&&<Text style={[styles.settingsHint,{color:colors.muted}]}>{player.timingNotice} 高亮始终显示整句，翻页跟随句内朗读位置。GLM 时间戳在后台分析，不等待识别即可播放；未取得时间戳时使用估算进度。</Text>}
+      <Text style={[styles.label,{color:colors.text}]}>语音服务</Text>
+      <ReaderSegmented colors={colors} options={[['system','本地语音'],['glm','GLM'],['minimax','MiniMax']] as const} value={draftVoice.provider} onChange={chooseProvider}/>
+      {draftVoice.provider!=='system'&&<><Text style={[styles.label,{color:colors.text}]}>模型</Text><TextInput value={draftVoice.model} editable={false} onChangeText={model=>changeVoice({...draftVoice,model})} autoCapitalize="none" style={[styles.input,{color:colors.text,borderColor:colors.line}]}/></>}
+      {draftVoice.provider==='minimax'&&<><Text style={{color:colors.muted}}>中国区 · 使用服务端密钥</Text><ReaderButton colors={colors} label={voicesBusy?'正在获取音色…':'刷新全部音色'} disabled={voicesBusy} onPress={()=>{void loadMiniVoices();}}/>{!!voiceNotice&&<Text style={{color:colors.muted}}>{voiceNotice}</Text>}</>}
+      <Text style={[styles.label,{color:colors.text}]}>音色</Text>
+      <View style={styles.chips}>{selectedVoices.map(v=><ReaderButton colors={colors} key={v.value} label={v.label} primary={draftVoice.voice===v.value} onPress={()=>changeVoice({...draftVoice,voice:v.value})}/>)}</View>
+      {draftVoice.provider!=='system'&&<TextInput value={draftVoice.voice} onChangeText={voice=>changeVoice({...draftVoice,voice})} placeholder="音色名称 / 自定义音色 ID" placeholderTextColor={colors.muted} autoCapitalize="none" style={[styles.input,{color:colors.text,borderColor:colors.line}]}/>}
+      <Text style={[styles.settingsHint,{color:colors.muted}]}>点“完成”后应用模型和音色。正在听书时会从当前句重新开始；已暂停时保持暂停。云端语音按段落预合成，GLM 和 MiniMax 均使用服务端密钥。</Text>
+     </ReaderSection>
+     <ReaderSection colors={colors} title="其他">
+      <View style={styles.settingsRow}>
+       <View style={{flex:1,gap:4}}><Text style={[styles.label,{color:colors.text}]}>阅读时屏幕常亮</Text><Text style={[styles.settingsHint,{color:colors.muted}]}>打开书时屏幕不会自动熄灭；离开书本或退出 App 后恢复系统设置。</Text></View>
+       <Switch accessibilityLabel="阅读时屏幕常亮" value={prefs.keepAwake} onValueChange={keepAwake=>setPrefs(p=>({...p,keepAwake}))} trackColor={{false:colors.line,true:colors.accent}} ios_backgroundColor={colors.line}/>
+      </View>
+     </ReaderSection>
+     <ReaderSection colors={colors} title="账号与同步">
+      <CloudConnection colors={colors}/>
+      {identity&&<><Text selectable style={{color:colors.text}}>当前账号：{identity.username}</Text><Text style={{color:colors.muted}}>听页 {appConfig.expo.version} · 本机书籍 · 云端进度同步</Text><ReaderButton colors={colors} label="退出登录 / 切换账号" onPress={()=>{void logout();}}/></>}
+     </ReaderSection>
     </ScrollView>}
   </ReaderPanel>
  </SafeAreaView>;

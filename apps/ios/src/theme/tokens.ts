@@ -8,8 +8,10 @@
  * This file is the single source of truth for the rest of the app:
  * navigation, shelves, lists, detail pages, search, profile and tingye.
  *
- * Color palette: Material 3 Tonal Spot generated from a green seed (#006B5F).
- * Surface roles are layered to express hierarchy without heavy shadows.
+ * Color palette: Material 3 roles filled from the reader's own themes — light
+ * follows 暖纸 (paper), dark follows 深林 (forest) — so the chrome and the page
+ * share one colour temperature. Surface roles are layered to express
+ * hierarchy without heavy shadows.
  */
 
 import { Platform } from 'react-native';
@@ -70,92 +72,94 @@ export interface AppColors {
   inversePrimary: string;
 }
 
+// Warm "paper" chrome that matches the reader's default 暖纸 theme, so moving
+// between the library and a book doesn't jump from cool teal to warm cream.
 export const lightColors: AppColors = {
-  primary: '#006B5F',
+  primary: '#2B5C4B',
   onPrimary: '#FFFFFF',
-  primaryContainer: '#74F8E6',
-  onPrimaryContainer: '#00201C',
+  primaryContainer: '#CFE3D6',
+  onPrimaryContainer: '#0F2A20',
 
-  secondary: '#4A635E',
+  secondary: '#56655C',
   onSecondary: '#FFFFFF',
-  secondaryContainer: '#CCE8E2',
-  onSecondaryContainer: '#06201C',
+  secondaryContainer: '#E1EADF',
+  onSecondaryContainer: '#1A2A21',
 
-  tertiary: '#436277',
+  tertiary: '#7A5A3A',
   onTertiary: '#FFFFFF',
-  tertiaryContainer: '#C9E6FF',
-  onTertiaryContainer: '#001E2F',
+  tertiaryContainer: '#F2DFC8',
+  onTertiaryContainer: '#2B1A08',
 
   error: '#BA1A1A',
   onError: '#FFFFFF',
   errorContainer: '#FFDAD6',
   onErrorContainer: '#410002',
 
-  background: '#F4F7F5',
-  onBackground: '#181C1B',
-  surface: '#FAFDFB',
-  onSurface: '#181C1B',
-  surfaceVariant: '#DAE5E2',
-  onSurfaceVariant: '#3F4946',
+  background: '#F9F6ED',
+  onBackground: '#283C31',
+  surface: '#FFFEFA',
+  onSurface: '#283C31',
+  surfaceVariant: '#E8E4D8',
+  onSurfaceVariant: '#5A665E',
 
   surfaceContainerLowest: '#FFFFFF',
-  surfaceContainerLow: '#F1F4F2',
-  surfaceContainer: '#EBEEEC',
-  surfaceContainerHigh: '#E5E9E7',
-  surfaceContainerHighest: '#DFE3E1',
+  surfaceContainerLow: '#FBF8F1',
+  surfaceContainer: '#F3EFE4',
+  surfaceContainerHigh: '#EDE9DD',
+  surfaceContainerHighest: '#E7E3D6',
 
-  outline: '#6F7976',
-  outlineVariant: '#BEC9C5',
+  outline: '#7E857C',
+  outlineVariant: '#D9D5C8',
 
   shadow: '#000000',
   scrim: '#000000',
-  inverseSurface: '#2C322F',
-  inverseOnSurface: '#ECF2EF',
-  inversePrimary: '#54DBC9',
+  inverseSurface: '#2E3A33',
+  inverseOnSurface: '#F3F0E6',
+  inversePrimary: '#9FD1B9',
 };
 
 export const darkColors: AppColors = {
-  primary: '#54DBC9',
-  onPrimary: '#003731',
-  primaryContainer: '#005048',
-  onPrimaryContainer: '#74F8E6',
+  primary: '#A8C4AC',
+  onPrimary: '#10251B',
+  primaryContainer: '#2C4A3B',
+  onPrimaryContainer: '#CDE6D3',
 
-  secondary: '#B1CCC6',
-  onSecondary: '#1C3531',
-  secondaryContainer: '#324B47',
-  onSecondaryContainer: '#CCE8E2',
+  secondary: '#B7C8BA',
+  onSecondary: '#22332A',
+  secondaryContainer: '#34463B',
+  onSecondaryContainer: '#D3E4D6',
 
-  tertiary: '#ABCBE3',
-  onTertiary: '#103449',
-  tertiaryContainer: '#2A4B5F',
-  onTertiaryContainer: '#C9E6FF',
+  tertiary: '#E3C39F',
+  onTertiary: '#3F2B12',
+  tertiaryContainer: '#5A4127',
+  onTertiaryContainer: '#FFE0BF',
 
   error: '#FFB4AB',
   onError: '#690005',
   errorContainer: '#93000A',
   onErrorContainer: '#FFDAD6',
 
-  background: '#0F1413',
-  onBackground: '#DEE4E1',
-  surface: '#0F1413',
-  onSurface: '#DEE4E1',
-  surfaceVariant: '#3F4946',
-  onSurfaceVariant: '#BEC9C5',
+  background: '#141D18',
+  onBackground: '#DDDCCD',
+  surface: '#17251F',
+  onSurface: '#DDDCCD',
+  surfaceVariant: '#34443A',
+  onSurfaceVariant: '#B3C0B5',
 
-  surfaceContainerLowest: '#0A0F0E',
-  surfaceContainerLow: '#181C1B',
-  surfaceContainer: '#1C2120',
-  surfaceContainerHigh: '#272B2A',
-  surfaceContainerHighest: '#313634',
+  surfaceContainerLowest: '#101814',
+  surfaceContainerLow: '#1A2620',
+  surfaceContainer: '#1E2B24',
+  surfaceContainerHigh: '#25332B',
+  surfaceContainerHighest: '#2D3B33',
 
-  outline: '#899390',
-  outlineVariant: '#3F4946',
+  outline: '#8C998F',
+  outlineVariant: '#3B4A40',
 
   shadow: '#000000',
   scrim: '#000000',
-  inverseSurface: '#DEE4E1',
-  inverseOnSurface: '#2C322F',
-  inversePrimary: '#006B5F',
+  inverseSurface: '#DDDCCD',
+  inverseOnSurface: '#1E2B24',
+  inversePrimary: '#2B5C4B',
 };
 
 // ---------------------------------------------------------------------------

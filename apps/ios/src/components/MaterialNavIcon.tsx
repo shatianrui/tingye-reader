@@ -3,6 +3,7 @@ import React from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useAppTheme } from '../theme/useAppTheme';
 import { shape as shapeTokens, spacing as spacingTokens } from '../theme/tokens';
+import { GlyphIcon } from './Icon';
 
 export interface MaterialNavIconProps {
   icon: string;
@@ -47,9 +48,7 @@ export default function MaterialNavIcon({
       ]}
     >
       <View style={styles.iconSlot}>
-        <Text style={[styles.icon, { color: fg }]} allowFontScaling={false}>
-          {icon}
-        </Text>
+        <GlyphIcon glyph={icon} size={22} color={fg} />
       </View>
       {showLabel ? (
         <Text
@@ -83,10 +82,6 @@ const styles = StyleSheet.create({
     height: 24,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  icon: {
-    fontSize: 22,
-    lineHeight: 24,
   },
   label: {
     marginLeft: spacingTokens.sm,

@@ -1,5 +1,5 @@
 import { DisplayText as Text } from '../components/DisplayText';
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActionSheetIOS,
   Alert,
@@ -24,6 +24,7 @@ import BookCover from '../components/BookCover';
 import MaterialAppBar from '../components/MaterialAppBar';
 import MaterialProgressBar from '../components/MaterialProgressBar';
 import MaterialButton from '../components/MaterialButton';
+import MaterialChip from '../components/MaterialChip';
 import { useAppTheme } from '../theme/useAppTheme';
 import { spacing as spacingTokens, shape as shapeTokens } from '../theme/tokens';
 
@@ -61,12 +62,16 @@ export default function ShelfScreen({ navigation }: Props) {
   const rowHeight=coverHeight+Math.ceil(64*fontScale);
   if(previousColumns.current!==columns){previousColumns.current=columns;restore.current=true;}
   const restoreScroll=()=>{if(!restore.current)return;restore.current=false;const a=scrollAnchor.current;list.current?.scrollToOffset({offset:a.headerOffset>=0?a.headerOffset:headerHeight.current+Math.floor(a.index/columns)*rowHeight,animated:false});};
-  const items=ui.books;
-  const continueReading=items[0];
+  const [status,setStatus]=useState<'all'|'reading'|'unread'>('all');
+  const items=useMemo(()=>status==='all'?ui.books:ui.books.filter(b=>{
+    const native=ui.nativeBooks.find(n=>n.id===b.id),started=!!native&&(!!native.chapter||!!native.position);
+    return status==='reading'?started:!started;
+  }),[ui.books,ui.nativeBooks,status]);
+  const continueReading=ui.books[0];
   const progressLabel=(id?:string)=>positionLabel(ui.nativeBooks.find(b=>b.id===id));
   const continuePercent=bookProgress(ui.nativeBooks.find(b=>b.id===continueReading?.id));
 
-  if (items.length === 0) {
+  if (ui.books.length === 0) {
     return (
       <View style={[styles.empty, { backgroundColor: theme.colors.background }]}>
         <MaterialAppBar
@@ -131,8 +136,10 @@ export default function ShelfScreen({ navigation }: Props) {
               onPress={() => navigation.navigate('Reader', { bookId: continueReading.id })}
               onDetail={() => navigation.navigate('BookDetail', { bookId: continueReading.id })}
             />
-          ) : null}</View>
+          ) : null}
+          <View style={styles.filters}>{([['all','全部'],['reading','在读'],['unread','未开始']] as const).map(([key,label])=><MaterialChip key={key} label={label} selected={status===key} onPress={()=>setStatus(key)}/>)}</View></View>
         }
+        ListEmptyComponent={<Text style={[styles.filterEmpty,{color:theme.colors.onSurfaceVariant}]}>{status==='reading'?'还没有开始读的书。':'所有书都已经开始读了。'}</Text>}
         columnWrapperStyle={{ gap: spacingTokens.md }}
         renderItem={({ item }) => {
           const percent=100*bookProgress(ui.nativeBooks.find(b=>b.id===item.id));
@@ -473,15 +480,25 @@ const styles = StyleSheet.create({
     maxWidth: 110,
   },
   cellTitle: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '500',
     marginTop: spacingTokens.sm,
     textAlign: 'center',
     maxWidth: 100,
   },
   cellMeta: {
-    fontSize: 11,
+    fontSize: 12,
     marginTop: 2,
+  },
+  filters: {
+    flexDirection: 'row',
+    gap: spacingTokens.sm,
+    marginBottom: spacingTokens.lg,
+  },
+  filterEmpty: {
+    fontSize: 14,
+    textAlign: 'center',
+    paddingVertical: spacingTokens.xl,
   },
   cellProgress: {
     marginTop: spacingTokens.xs,

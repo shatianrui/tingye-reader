@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { useAppTheme } from '../theme/useAppTheme';
 import { shape as shapeTokens, spacing as spacingTokens } from '../theme/tokens';
+import { GlyphIcon } from './Icon';
 
 export type ButtonVariant = 'filled' | 'tonal' | 'outlined' | 'text' | 'elevated';
 
@@ -98,7 +99,7 @@ export default function MaterialButton({
       accessibilityRole="button"
       accessibilityState={{ disabled: !!disabled }}
     >
-      {icon ? <Text style={[styles.icon, { color: textColor }]}>{icon}</Text> : null}
+      {icon ? <View style={styles.icon}><GlyphIcon glyph={icon} size={18} color={textColor} /></View> : null}
       <Text style={[styles.label, { color: textColor }]} numberOfLines={1}>
         {label}
       </Text>
@@ -111,7 +112,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    height: 40,
+    height: 44,
     paddingHorizontal: spacingTokens.lg,
     borderRadius: shapeTokens.full,
   },
@@ -124,7 +125,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.1,
   },
   icon: {
-    fontSize: 18,
     marginRight: spacingTokens.sm,
   },
   pressed: {
