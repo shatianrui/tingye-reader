@@ -178,89 +178,76 @@ jobs:
           security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          # Pasted secrets often pick up line breaks or spaces; strip them before decoding.
-          printf '%s' "$IOS_DISTRIBUTION_CERTIFICATE_BASE64" | tr -d ' \r\n' | base64 -d > "$RUNNER_TEMP/distribution.p12"
-          printf '%s' "$IOS_PROVISIONING_PROFILE_BASE64" | tr -d ' \r\n' | base64 -d > "$RUNNER_TEMP/profile.mobileprovision"
-          if ! security import "$RUNNER_TEMP/distribution.p12" -k "$KEYCHAIN_PATH" -P "${IOS_DISTRIBUTION_CERTIFICATE_PASSWORD:-}" -T /usr/bin/codesign -T /usr/bin/security; then
-            echo '无法导入 .p12 证书：请检查 IOS_DISTRIBUTION_CERTIFICATE_PASSWORD 是否就是这个 .p12 的密码。' >&2
-            exit 1
-          fi
-          # codesign needs the chain up to Apple's root; the G3 WWDR intermediate issues distribution certificates.
-          curl -fsSL https://www.apple.com/certificateauthority/AppleWWDRCAG3.cer -o "$RUNNER_TEMP/wwdr-g3.cer" && security import "$RUNNER_TEMP/wwdr-g3.cer" -k "$KEYCHAIN_PATH" -T /usr/bin/codesign || true
-          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH" > /dev/null
+          echo "$IOS_DISTRIBUTION_CERTIFICATE_BASE64" | base64 -d > "$RUNNER_TEMP/distribution.p12"
+          security import "$RUNNER_TEMP/distribution.p12" -k "$KEYCHAIN_PATH" -P "$IOS_DISTRIBUTION_CERTIFICATE_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security list-keychains -d user -s "$KEYCHAIN_PATH" $(security list-keychains -d user | sed 's/"//g')
-          security cms -D -i "$RUNNER_TEMP/profile.mobileprovision" > "$RUNNER_TEMP/profile.plist"
-          SIGN_IDENTITY=$(python3 - "$RUNNER_TEMP/profile.plist" "$KEYCHAIN_PATH" "$RUNNER_TEMP/entitlements.plist" <<'PY'
-          import datetime, hashlib, plistlib, re, subprocess, sys
-          profile_path, keychain, entitlements_path = sys.argv[1:4]
-          profile = plistlib.load(open(profile_path, 'rb'))
-          ent = profile['Entitlements']
-          app_id = ent['application-identifier']
-          if not app_id.endswith('.com.shatianrui.wereader'):
-              sys.exit(f'描述文件的 App ID 是 {app_id}，不是 com.shatianrui.wereader。')
-          expires = profile['ExpirationDate']
-          if expires.replace(tzinfo=None) < datetime.datetime.utcnow():
-              sys.exit(f'描述文件已于 {expires} 过期。')
-          allowed = {hashlib.sha1(c).hexdigest().upper() for c in profile['DeveloperCertificates']}
-          listing = subprocess.run(['security', 'find-identity', '-p', 'codesigning', keychain], capture_output=True, text=True).stdout
-          matches = [h for h in dict.fromkeys(re.findall(r'\b([0-9A-F]{40})\b', listing)) if h in allowed]
-          if not matches:
-              sys.exit('这个 .p12 里的证书不在描述文件登记的证书里，两者不配套，签出来也装不上。')
-          # Only the entitlements a plain Xcode build carries: copying the profile's
-          # wildcard keychain-access-groups would make "TEAM.*" the default keychain
-          # group and break stored logins.
-          plistlib.dump({k: ent[k] for k in ('application-identifier', 'com.apple.developer.team-identifier', 'get-task-allow') if k in ent},
-                        open(entitlements_path, 'wb'))
-          print(f"Profile: {profile['Name']} · {app_id} · expires {expires:%Y-%m-%d} · {len(profile.get('ProvisionedDevices', []))} device(s)", file=sys.stderr)
-          print(matches[0])
-          PY
-          )
+          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
+          echo "$IOS_PROVISIONING_PROFILE_BASE64" | base64 -d > "$RUNNER_TEMP/profile.mobileprovision"
+          PROFILE_UUID=$(security cms -D -i "$RUNNER_TEMP/profile.mobileprovision" | plutil -extract UUID xml1 -o - - | sed -n 's/.*<string>\(.*\)<\/string>.*/\1/p')
+          PROFILE_NAME=$(security cms -D -i "$RUNNER_TEMP/profile.mobileprovision" | plutil -extract Name xml1 -o - - | sed -n 's/.*<string>\(.*\)<\/string>.*/\1/p')
+          TEAM_ID=$(security cms -D -i "$RUNNER_TEMP/profile.mobileprovision" | plutil -extract TeamIdentifier.0 xml1 -o - - | sed -n 's/.*<string>\(.*\)<\/string>.*/\1/p')
+          cp "$RUNNER_TEMP/profile.mobileprovision" "$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_UUID.mobileprovision"
           {
-            echo "SIGN_IDENTITY=$SIGN_IDENTITY"
+            echo "PROFILE_UUID=$PROFILE_UUID"
+            echo "PROFILE_NAME=$PROFILE_NAME"
+            echo "TEAM_ID=$TEAM_ID"
             echo "KEYCHAIN_PATH=$KEYCHAIN_PATH"
           } >> "$GITHUB_ENV"
-      - name: Archive
-        # Always archived unsigned: passing provisioning settings to xcodebuild
-        # would also apply them to every CocoaPods target and fail there. Signed
-        # profiles sign the finished app in the packaging step instead.
+      - name: Archive (signed)
+        if: ${{ inputs.ios_profile != 'unsigned' }}
+        run: |
+          xcodebuild -workspace ios/app.xcworkspace -scheme app -configuration Release \
+            -archivePath "$RUNNER_TEMP/app.xcarchive" -destination "generic/platform=iOS" \
+            -allowProvisioningUpdates CODE_SIGN_STYLE=Manual \
+            PROVISIONING_PROFILE="$PROFILE_UUID" DEVELOPMENT_TEAM="$TEAM_ID" \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
+            OTHER_CODE_SIGN_FLAGS="--keychain $KEYCHAIN_PATH" \
+            archive
+      - name: Export signed IPA
+        if: ${{ inputs.ios_profile != 'unsigned' }}
+        run: |
+          METHOD=${{ inputs.ios_profile == 'appstore' && 'app-store' || 'ad-hoc' }}
+          mkdir -p releases
+          cat > "$RUNNER_TEMP/exportOptions.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>$METHOD</string>
+            <key>teamID</key><string>$TEAM_ID</string>
+            <key>signingStyle</key><string>manual</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>com.shatianrui.wereader</key><string>$PROFILE_NAME</string>
+            </dict>
+          </dict>
+          </plist>
+          PLIST
+          xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/app.xcarchive" -exportPath releases -exportOptionsPlist "$RUNNER_TEMP/exportOptions.plist"
+      - name: Archive and package unsigned IPA
+        if: ${{ inputs.ios_profile == 'unsigned' }}
+        # No Apple cert/profile needed. The .app is unsigned and cannot install
+        # on a device as-is; the person running this build re-signs the ipa with
+        # their own signing tool (e.g. Sideloadly/AltStore/TrollStore) before install.
         run: |
           xcodebuild -workspace ios/app.xcworkspace -scheme app -configuration Release \
             -archivePath "$RUNNER_TEMP/app.xcarchive" -destination "generic/platform=iOS" \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
             archive
-      - name: Package IPA
-        # unsigned: the operator re-signs it with their own tool before installing.
-        # adhoc/appstore: embed the profile, sign frameworks, then the app.
-        env:
-          IOS_PROFILE: ${{ inputs.ios_profile }}
-        run: |
-          set -euo pipefail
-          rm -rf releases && mkdir -p releases/Payload
+          mkdir -p releases/Payload
           cp -R "$RUNNER_TEMP/app.xcarchive/Products/Applications/app.app" releases/Payload/
-          app=releases/Payload/app.app
-          if [ "$IOS_PROFILE" = unsigned ]; then
-            name=app-unsigned.ipa
-          else
-            cp "$RUNNER_TEMP/profile.mobileprovision" "$app/embedded.mobileprovision"
-            for item in "$app"/Frameworks/*.framework "$app"/Frameworks/*.dylib; do
-              [ -e "$item" ] || continue
-              codesign --force --sign "$SIGN_IDENTITY" --keychain "$KEYCHAIN_PATH" --timestamp=none "$item"
-            done
-            codesign --force --sign "$SIGN_IDENTITY" --keychain "$KEYCHAIN_PATH" --timestamp=none --entitlements "$RUNNER_TEMP/entitlements.plist" "$app"
-            codesign --verify --deep --strict --verbose=2 "$app"
-            name="app-$IOS_PROFILE.ipa"
-          fi
           # zip -y and macOS extra fields (0x7875) make Windows Explorer report the
           # archive as invalid ("无法打开压缩文件夹"). -X strips those fields; do not
           # store symlinks. Payload must stay at the archive root.
-          (cd releases && zip -r -X "$name" Payload)
-          unzip -tqq "releases/$name"
+          (cd releases && zip -r -X app-unsigned.ipa Payload)
+          unzip -tqq releases/app-unsigned.ipa
           rm -rf releases/Payload
       - name: Clean up signing material
         if: always()
         run: |
           security delete-keychain "$RUNNER_TEMP/build.keychain-db" 2>/dev/null || true
-          rm -f "$RUNNER_TEMP/distribution.p12" "$RUNNER_TEMP/profile.mobileprovision" "$RUNNER_TEMP/profile.plist" "$RUNNER_TEMP/entitlements.plist" "$RUNNER_TEMP/wwdr-g3.cer"
+          rm -f "$RUNNER_TEMP/distribution.p12" "$RUNNER_TEMP/profile.mobileprovision"
       - name: Resolve IPA path
         id: ipa
         run: |
