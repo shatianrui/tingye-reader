@@ -13,7 +13,7 @@ if (-not (Test-Path $environmentFile)) {
   throw "Create deploy/tencent/.env.server from .env.server.example and fill in the production secrets first."
 }
 
-$required = @("DOMAIN", "DATABASE_URL", "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "AUTH_RATE_SECRET")
+$required = @("DOMAIN", "POSTGRES_PASSWORD", "S3_ACCESS_KEY", "S3_SECRET_KEY", "AUTH_RATE_SECRET")
 $configured = @{}
 Get-Content $environmentFile | ForEach-Object {
   if ($_ -match '^\s*([^#][^=]*)=(.*)$') {

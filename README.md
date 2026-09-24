@@ -1,6 +1,6 @@
 # 听页 Tingye Reader
 
-网站、Android 与 iOS 的维护仓库。生产网站 https://tingye-reader.vercel.app 。移动端使用 React Native / Expo 原生阅读界面，共用网站的账号、书籍备份、阅读进度和云端语音接口。
+网站、Android 与 iOS 的维护仓库。生产网站 https://copilotcli.top 。移动端使用 React Native / Expo 原生阅读界面，共用网站的账号、书籍备份、阅读进度和云端语音接口。
 
 ## 工程结构
 
@@ -24,7 +24,8 @@ npm ci
 npm run dev
 ```
 
-网站默认 http://localhost:5174 。客户端接口配置在各端 src/tingye，搜索 tingye-reader.vercel.app 可找到生产地址。生产 API 密钥只配置在服务端。
+网站默认 http://localhost:5174 。客户端接口配置在各端 src/tingye，搜索
+`ORIGIN` 可找到生产地址。生产 API 密钥只配置在服务端。
 
 每个工程运行 `npm ci`、`npm run typecheck`、`npm test`。网站首次类型检查前执行 `npx next typegen`。GitHub Actions 分别检查三端源码，不访问生产数据库、不提交商店构建。
 

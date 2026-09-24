@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {Directory,File,Paths} from 'expo-file-system';
 import {fetch} from 'expo/fetch';
-import {api,session} from './client';
+import {api,ORIGIN,session} from './client';
 import {createLibrary,type Entry,validateBook} from './library';
 import {createCoverCache} from './cover-cache';
 export function nativeLibrary(userId:string){
@@ -19,7 +19,7 @@ export function nativeLibrary(userId:string){
   cover:book=>covers.prepare(book).catch(()=>undefined),
   remove:async id=>{const f=file(id);if(f.exists)f.delete();covers.remove(id);},
  },async<T>(path:string,options?:RequestInit)=>{if(session()?.user.userId!==userId)throw Error('请登录此书架的账号。');return api<T>(path,{...options,signal:options?.signal??AbortSignal.timeout(path.startsWith('/api/backups')?120000:15000)});},async(url,options)=>{
-  const parsed=new URL(url);if(parsed.protocol!=='https:'||parsed.hostname!=='cjhiszkujkqgmblxwryw.supabase.co')throw Error('备份地址无效。');
+  const parsed=new URL(url);if(parsed.protocol!=='https:'||parsed.hostname!==new URL(ORIGIN).hostname)throw Error('备份地址无效。');
   // Signed storage URLs need no account bearer token.
   return fetch(url,{...options,redirect:'error',signal:AbortSignal.timeout(120000)});
  });

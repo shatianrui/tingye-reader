@@ -5,6 +5,11 @@ WORKDIR /app
 COPY package.json package-lock.json .npmrc ./
 RUN npm ci --no-audit --no-fund
 
+FROM node:22-bookworm-slim AS runtime-dependencies
+WORKDIR /app
+COPY package.json package-lock.json .npmrc ./
+RUN npm ci --omit=dev --no-audit --no-fund
+
 FROM node:22-bookworm-slim AS builder
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1 \
@@ -33,10 +38,14 @@ ENV NODE_ENV=production \
     HOSTNAME=0.0.0.0 \
     PORT=5174
 COPY --from=builder --chown=node:node /app/.next/standalone ./
+COPY --from=runtime-dependencies --chown=node:node /app/node_modules ./node_modules
 COPY --from=builder --chown=node:node /app/.next/static ./.next/static
 COPY --from=builder --chown=node:node /app/public ./public
+COPY --from=builder --chown=node:node /app/db ./db
+COPY --from=builder --chown=node:node /app/scripts/migrate.mjs ./scripts/migrate.mjs
+COPY --from=builder --chown=node:node /app/scripts/start-production.mjs ./scripts/start-production.mjs
 USER node
 EXPOSE 5174
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:5174/login').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"
-CMD ["node", "server.js"]
+CMD ["node", "scripts/start-production.mjs"]

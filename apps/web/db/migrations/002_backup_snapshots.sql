@@ -11,12 +11,12 @@ create table if not exists tingye.backup_uploads (
  book_id text not null, base_revision uuid, object_path text not null unique,
  object_size bigint not null, sha256 text not null, expires_at timestamptz not null
 );
-revoke all on tingye.backups, tingye.backup_uploads from public, anon, authenticated;
+revoke all on tingye.backups, tingye.backup_uploads from public;
 alter table tingye.backups enable row level security;
 alter table tingye.backup_uploads enable row level security;
 create table if not exists tingye.backup_garbage (
  object_path text primary key, user_id uuid not null references tingye.accounts(id) on delete cascade,
  retire_at timestamptz not null
 );
-revoke all on tingye.backup_garbage from public, anon, authenticated;
+revoke all on tingye.backup_garbage from public;
 alter table tingye.backup_garbage enable row level security;
