@@ -3,7 +3,7 @@ import type {Typography} from './typesetting';
 import type {ReadingTheme} from './themes';
 import {legacyDocument} from './original-document';
 import {readerScript} from './reader-script';
-export type ReaderConfig={fontSize:number;typography:Typography;colors:ReadingTheme;original:boolean;spread?:boolean};
+export type ReaderConfig={fontSize:number;typography:Typography;colors:ReadingTheme;original:boolean;spread?:boolean;eink?:boolean};
 export const scriptJson=(v:unknown)=>JSON.stringify(v).replace(/</g,'\\u003c').replace(/\u2028/g,'\\u2028').replace(/\u2029/g,'\\u2029');
 export function originalPage(chapter:Chapter,config:ReaderConfig,offset:number,fontCss='',resources:Record<string,string>={}){
  const source=chapter.document||legacyDocument(chapter);

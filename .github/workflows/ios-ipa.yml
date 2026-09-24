@@ -1,0 +1,130 @@
+name: Build iOS IPA
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - deploy/tencent-cloud
+    paths:
+      - apps/ios/**
+      - .github/workflows/ios-ipa.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-ipa-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: macos-15
+    defaults:
+      run:
+        working-directory: apps/ios
+    env:
+      IOS_CERTIFICATE_BASE64: ${{ secrets.IOS_CERTIFICATE_BASE64 }}
+      IOS_CERTIFICATE_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
+      IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+      BUNDLE_IDENTIFIER: com.shatianrui.wereader
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: apps/ios/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run test:reader
+      - run: npm run build:reader
+      - run: npm run prepare:native
+      - name: Validate signing secrets
+        shell: bash
+        run: |
+          test -n "$IOS_CERTIFICATE_BASE64" || { echo "::error::Missing IOS_CERTIFICATE_BASE64"; exit 1; }
+          test -n "$IOS_CERTIFICATE_PASSWORD" || { echo "::error::Missing IOS_CERTIFICATE_PASSWORD"; exit 1; }
+          test -n "$IOS_PROVISIONING_PROFILE_BASE64" || { echo "::error::Missing IOS_PROVISIONING_PROFILE_BASE64"; exit 1; }
+      - name: Install signing certificate
+        uses: apple-actions/import-codesign-certs@v3
+        with:
+          p12-file-base64: ${{ secrets.IOS_CERTIFICATE_BASE64 }}
+          p12-password: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
+      - name: Install provisioning profile
+        id: signing
+        shell: bash
+        run: |
+          profile="$RUNNER_TEMP/profile.mobileprovision"
+          printf '%s' "$IOS_PROVISIONING_PROFILE_BASE64" | base64 -D > "$profile"
+          security cms -D -i "$profile" > "$RUNNER_TEMP/profile.plist"
+          uuid=$(/usr/libexec/PlistBuddy -c 'Print :UUID' "$RUNNER_TEMP/profile.plist")
+          name=$(/usr/libexec/PlistBuddy -c 'Print :Name' "$RUNNER_TEMP/profile.plist")
+          team=$(/usr/libexec/PlistBuddy -c 'Print :TeamIdentifier:0' "$RUNNER_TEMP/profile.plist")
+          application=$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:application-identifier' "$RUNNER_TEMP/profile.plist")
+          [[ "$application" == "$team.$BUNDLE_IDENTIFIER" ]] || { echo "::error::Provisioning profile is for $application, expected $team.$BUNDLE_IDENTIFIER"; exit 1; }
+          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
+          cp "$profile" "$HOME/Library/MobileDevice/Provisioning Profiles/$uuid.mobileprovision"
+          {
+            echo "profile_name=$name"
+            echo "team_id=$team"
+          } >> "$GITHUB_OUTPUT"
+      - name: Generate native Xcode project
+        run: |
+          npx expo prebuild --platform ios --clean --no-install
+          npx pod-install@1.0.9 ios
+      - name: Archive and export IPA
+        id: release
+        shell: bash
+        env:
+          PROFILE_NAME: ${{ steps.signing.outputs.profile_name }}
+          TEAM_ID: ${{ steps.signing.outputs.team_id }}
+        run: |
+          workspace=$(find ios -name '*.xcworkspace' -print -quit)
+          test -n "$workspace" || { echo "::error::Xcode workspace was not generated"; exit 1; }
+          scheme=$(xcodebuild -workspace "$workspace" -list -json | python3 -c 'import json,sys; print(json.load(sys.stdin)["workspace"]["schemes"][0])')
+          archive="$RUNNER_TEMP/Tingye.xcarchive"
+          export_path="$RUNNER_TEMP/export"
+          xcodebuild archive \
+            -workspace "$workspace" \
+            -scheme "$scheme" \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$archive" \
+            CODE_SIGN_STYLE=Manual \
+            DEVELOPMENT_TEAM="$TEAM_ID" \
+            PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME" \
+            PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_IDENTIFIER"
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>ad-hoc</string>
+            <key>signingStyle</key><string>manual</string>
+            <key>teamID</key><string>$TEAM_ID</string>
+            <key>provisioningProfiles</key><dict>
+              <key>$BUNDLE_IDENTIFIER</key><string>$PROFILE_NAME</string>
+            </dict>
+          </dict></plist>
+          PLIST
+          xcodebuild -exportArchive -archivePath "$archive" -exportPath "$export_path" -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist"
+          version=$(node -p "require('./app.json').expo.version")
+          build_number=$(node -p "require('./app.json').expo.ios.buildNumber")
+          file="tingye-ios-${version}-build${build_number}.ipa"
+          source_ipa=$(find "$export_path" -name '*.ipa' -print -quit)
+          test -n "$source_ipa" || { echo "::error::Xcode did not export an IPA"; exit 1; }
+          cp "$source_ipa" "$file"
+          shasum -a 256 "$file" | tee "$file.sha256"
+          {
+            echo "version=$version"
+            echo "build_number=$build_number"
+            echo "file=$file"
+          } >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tingye-ios-${{ steps.release.outputs.version }}-build${{ steps.release.outputs.build_number }}
+          path: |
+            apps/ios/${{ steps.release.outputs.file }}
+            apps/ios/${{ steps.release.outputs.file }}.sha256
+          if-no-files-found: error
+          retention-days: 30

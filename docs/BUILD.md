@@ -26,21 +26,21 @@ npm run build:apk
 
 ## iOS IPA
 
-在 apps/ios 工作。Windows 使用 EAS CLI 云构建；本地 Xcode 构建需要 macOS。原 EAS 项目关联保留，执行者需有项目权限。
+iOS IPA 由 GitHub Actions 的 `Build iOS IPA` 工作流在 GitHub macOS Runner
+上直接调用 CocoaPods 与 Xcode 构建，不使用 EAS 云构建。工作流先执行类型检查、
+完整测试和真实 WebView 阅读器测试，再生成原生工程、归档、签名并上传 IPA 与
+SHA-256 为 Actions Artifact。
 
-```powershell
-cd apps/ios
-npm ci
-npm run typecheck
-npm test
-npx eas-cli@24.6.0 login
-# 复制 credentials.example.json 为 credentials.json，填入实际证书路径和密码
-npm run build:ipa
-```
+仓库需要配置以下 Actions Secrets：
 
-preview 使用本地提供的设备签名配置，描述文件必须包含设备 UDID，并与证书、Bundle ID 相符。商店签名使用 `pwsh -File tools/build-device.ps1 -Profile production`。两种签名不能混用。CLI 等待构建并显示产物链接；使用 -NoWait 仅提交。
+- `IOS_CERTIFICATE_BASE64`：Apple Distribution `.p12` 的 Base64。
+- `IOS_CERTIFICATE_PASSWORD`：该 `.p12` 的密码。
+- `IOS_PROVISIONING_PROFILE_BASE64`：包含目标设备 UDID、匹配
+  `com.shatianrui.wereader` 的 Ad Hoc `.mobileprovision` Base64。
 
-保留 eas-build-post-install 钩子：它选择正式入口并应用 expo-audio 的 iOS 时钟修复。verification/index.tsx 仅用于模拟器样例。EAS 使用远端 build number 自动递增，以构建详情为准。TestFlight 使用 `npx eas-cli@24.6.0 submit --platform ios`，通过 CLI 配置 App Store Connect 凭据，私钥不入库。
+描述文件、证书和密码不得提交到仓库。新设备安装前必须重新生成包含其 UDID 的
+Ad Hoc 描述文件并更新 Secret。正式发布应改用 App Store 描述文件和对应的
+`ExportOptions.plist` method。
 
 ## 网站 / Vercel
 
