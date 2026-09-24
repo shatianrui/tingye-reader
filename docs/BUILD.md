@@ -26,21 +26,16 @@ npm run build:apk
 
 ## iOS IPA
 
-iOS IPA 由 GitHub Actions 的 `Build iOS IPA` 工作流在 GitHub macOS Runner
-上直接调用 CocoaPods 与 Xcode 构建，不使用 EAS 云构建。工作流先执行类型检查、
-完整测试和真实 WebView 阅读器测试，再生成原生工程、归档、签名并上传 IPA 与
-SHA-256 为 Actions Artifact。
+iOS IPA 由 GitHub Actions 的 `Build unsigned iOS IPA` 工作流在 GitHub macOS
+Runner 上调用 CocoaPods 与 Xcode 构建，不使用 EAS 云构建。工作流先执行类型
+检查、完整测试和真实 WebView 阅读器测试，再归档未签名的 iOS 真机 app，
+将其打包为 `*-unsigned.ipa`，校验版本、Bundle ID、arm64 架构、无签名及
+归档完整性，并上传 IPA 与 SHA-256 为 Actions Artifact。无须 Apple 证书或
+GitHub Secrets。
 
-仓库需要配置以下 Actions Secrets：
-
-- `IOS_CERTIFICATE_BASE64`：Apple Distribution `.p12` 的 Base64。
-- `IOS_CERTIFICATE_PASSWORD`：该 `.p12` 的密码。
-- `IOS_PROVISIONING_PROFILE_BASE64`：包含目标设备 UDID、匹配
-  `com.shatianrui.wereader` 的 Ad Hoc `.mobileprovision` Base64。
-
-描述文件、证书和密码不得提交到仓库。新设备安装前必须重新生成包含其 UDID 的
-Ad Hoc 描述文件并更新 Secret。正式发布应改用 App Store 描述文件和对应的
-`ExportOptions.plist` method。
+**未签名 IPA 不能通过网站 OTA 或直接安装在普通 iPhone 上。** 后续若要安装，
+仍须用有效 Apple 证书和包含目标设备 UDID 的 Ad Hoc 描述文件重新签名；
+不要将未签名文件替换网站当前可安装的 IPA。
 
 ## 网站 / Vercel
 
