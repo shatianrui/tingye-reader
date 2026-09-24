@@ -6,7 +6,7 @@
 
 移动端入口为 index.ts → App.tsx → src/tingye/ReaderApplication.tsx。导入、书架、原版排版、封面、朗读、同步集中在 src/tingye；原生模块在 modules。网站 API 在 apps/web/app/api，校验、数据库和 TTS 封装在 apps/web/lib。
 
-Android 1.6.5 / 16006 与 iOS 1.8.5 / 43 各自作为基线。云端备份/同步核心（library.ts、native-library.ts）已在测试覆盖下于双端统一；未来提取共享解析、语音等逻辑仍应逐项移植，不要一次性替换平台实现。
+Android 1.6.5 / 16006 与 iOS 1.8.6 / 44 各自作为基线。云端备份/同步核心（library.ts、native-library.ts）已在测试覆盖下于双端统一；未来提取共享解析、语音等逻辑仍应逐项移植，不要一次性替换平台实现。
 
 ## 修改与回归
 

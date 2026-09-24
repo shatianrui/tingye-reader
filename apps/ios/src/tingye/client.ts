@@ -3,7 +3,7 @@ import { fetch } from 'expo/fetch';
 // Both names serve the same Vercel deployment. *.vercel.app is blocked in
 // mainland China, so the custom domain goes first; the fallback covers the
 // time before its DNS is live and any network where only one name resolves.
-export const ORIGINS=['https://tingye.copilotcli.top','https://tingye-reader.vercel.app'] as const;
+export const ORIGINS=['https://copilotcli.top','https://tingye-reader.vercel.app'] as const;
 export const ORIGIN=ORIGINS[0];
 let preferred=0;
 export const activeOrigin=()=>ORIGINS[preferred];
