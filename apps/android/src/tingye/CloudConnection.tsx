@@ -1,6 +1,6 @@
 import {useState} from 'react';
 import {Pressable,Text,View} from 'react-native';
-import {api,ORIGIN} from './client';
+import {api,activeOrigin} from './client';
 import type {ReadingTheme} from './themes';
 
 export default function CloudConnection({colors}:{colors:ReadingTheme}) {
@@ -21,7 +21,7 @@ export default function CloudConnection({colors}:{colors:ReadingTheme}) {
  };
  return <View style={{padding:18,gap:10,backgroundColor:colors.surface,borderColor:colors.line,borderWidth:1,borderRadius:18}}>
   <Text style={{fontSize:15,fontWeight:'600',color:colors.text}}>听页云端 · Vercel</Text>
-  <Text selectable style={{fontSize:13,color:colors.accent}}>{ORIGIN.replace('https://','')}</Text>
+  <Text selectable style={{fontSize:13,color:colors.accent}}>{activeOrigin().replace('https://','')}</Text>
   <Text accessibilityLiveRegion="polite" style={{fontSize:13,lineHeight:20,color:colors.muted}}>{message}</Text>
   <Pressable accessibilityRole="button" disabled={checking} onPress={()=>void check()} style={{minHeight:44,justifyContent:'center'}}><Text style={{color:colors.accent,fontWeight:'600'}}>{checking?'正在检测…':'检测连接与语音配置 ↗'}</Text></Pressable>
  </View>;

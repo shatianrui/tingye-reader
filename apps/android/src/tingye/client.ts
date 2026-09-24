@@ -1,6 +1,12 @@
 import * as SecureStore from 'expo-secure-store';
 import { fetch } from 'expo/fetch';
-export const ORIGIN='https://tingye-reader.vercel.app';
+// Both names serve the same Vercel deployment. *.vercel.app is blocked in
+// mainland China, so the custom domain goes first; the fallback covers the
+// time before its DNS is live and any network where only one name resolves.
+export const ORIGINS=['https://tingye.copilotcli.top','https://tingye-reader.vercel.app'] as const;
+export const ORIGIN=ORIGINS[0];
+let preferred=0;
+export const activeOrigin=()=>ORIGINS[preferred];
 // Site tokens are intentionally kept separate from the new account service.
 const KEY='tingye.vercel.session.v1';
 export type Session={token:string;expiresAt:number;user:{userId:string;displayName:string;username:string}};
@@ -13,7 +19,14 @@ export class ApiError extends Error{constructor(message:string,public status:num
 export async function request(path:string,options:RequestInit={},anonymous=false){
  if(!/^\/api\//.test(path)||path.includes('://'))throw new Error('无效的服务地址。');
  const headers=new Headers(options.headers);headers.set('X-Tingye-Client','native');if(!anonymous&&current)headers.set('Authorization','Bearer '+current.token);if(typeof options.body==='string')headers.set('Content-Type','application/json');
- let response:Response;try{response=await fetch(ORIGIN+path,{...options,headers,signal:options.signal??AbortSignal.timeout(45000),redirect:'error'});}catch(e){if(options.signal?.aborted)throw e;throw new ApiError('暂时连接不上云端。已下载的书籍可以继续阅读，请检查网络后重试。',0);}
+ let response:Response|undefined;
+ // A name that cannot be reached is skipped; the one that answered is kept for
+ // later requests so a dead name costs one failed attempt, not one per request.
+ for(let attempt=0;!response;attempt++){
+  const index=(preferred+attempt)%ORIGINS.length;
+  try{response=await fetch(ORIGINS[index]+path,{...options,headers,signal:options.signal??AbortSignal.timeout(45000),redirect:'error'});preferred=index;}
+  catch(e){if(options.signal?.aborted)throw e;if(attempt>=ORIGINS.length-1)throw new ApiError('暂时连接不上云端。已下载的书籍可以继续阅读，请检查网络后重试。',0);}
+ }
  if(!response.ok){const body=await response.json().catch(()=>null) as {error?:string;code?:string;retryAfter?:number}|null;const retry=Number(response.headers?.get('Retry-After')??body?.retryAfter);throw new ApiError(body?.error||(response.status===401?'登录已过期，请重新登录。':`服务暂不可用（${response.status}）。`),response.status,body?.code,Number.isFinite(retry)&&retry>0?retry:undefined);}return response;
 }
 export async function api<T>(path:string,options?:RequestInit):Promise<T>{return (await request(path,options)).json() as Promise<T>;}
