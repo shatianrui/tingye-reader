@@ -2,9 +2,11 @@ const env = process.env;
 
 export async function minimaxRequest(path: '/t2a_v2' | '/get_voice', body: unknown) {
   if (!env.MINIMAX_API_KEY) throw new Error('MiniMax 尚未配置服务端密钥。');
-  const origin=env.MINIMAX_REGION==='global'?'https://api.minimax.io':'https://api.minimaxi.com';
+  const origin=env.MINIMAX_REGION==='global'?'https://api.minimax.io':'https://api.minimax.cn';
+  const url=new URL('/v1'+path,origin);
+  if(env.MINIMAX_GROUP_ID)url.searchParams.set('GroupId',env.MINIMAX_GROUP_ID);
   let response:Response;
-  try {response=await fetch(origin+'/v1'+path,{method:'POST',headers:{Authorization:`Bearer ${env.MINIMAX_API_KEY}`,'Content-Type':'application/json'},body:JSON.stringify(body),redirect:'manual',signal:AbortSignal.timeout(45000)});}
+  try {response=await fetch(url,{method:'POST',headers:{Authorization:`Bearer ${env.MINIMAX_API_KEY}`,'Content-Type':'application/json'},body:JSON.stringify(body),redirect:'manual',signal:AbortSignal.timeout(45000)});}
   catch(error){const e=error as Error & {cause?:{code?:string;message?:string}};console.warn('MiniMax transport failed',{name:e.name,code:e.cause?.code,message:e.cause?.message||e.message});throw new Error('MiniMax 连接失败，请稍后重试。');}
   // Workers only supports manual/follow; never forward the API key on redirects.
   if(response.status>=300&&response.status<400)throw new Error('MiniMax 服务地址发生跳转，请检查服务端区域配置。');

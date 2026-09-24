@@ -2,7 +2,7 @@ import { requestUser } from '@/lib/mobile-auth';
 import { minimaxRequest } from '@/lib/minimax';
 export async function POST(req:Request){
  if(!await requestUser(req))return Response.json({error:'请先登录。'},{status:401});
- if(req.headers.get('origin')&&req.headers.get('origin')!==new URL(req.url).origin)return Response.json({error:'请求来源不受支持。'},{status:403});
+ if(req.headers.get('origin')&&req.headers.get('origin')!==new URL(process.env.APP_ORIGIN||req.url).origin)return Response.json({error:'请求来源不受支持。'},{status:403});
  try{
   const raw=await req.text();if(raw.length>2000)return Response.json({error:'请求过大。'},{status:413});
   const body=JSON.parse(raw||'{}');if(body?.provider!=='minimax')return Response.json({error:'不支持的语音来源。'},{status:400});
