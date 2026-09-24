@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  output: "standalone",
   async headers(){return [
     {source:'/releases/wereader-1.8.0-18001.apk',headers:[{key:'Content-Type',value:'application/vnd.android.package-archive'},{key:'Content-Disposition',value:'attachment; filename="wereader-1.8.0-18001.apk"'},{key:'Cache-Control',value:'public, max-age=31536000, immutable'},{key:'X-Content-Type-Options',value:'nosniff'}]},
     {source:'/releases/tingye-ios-1.8.0-build37.ipa',headers:[{key:'Content-Type',value:'application/octet-stream'},{key:'Content-Disposition',value:'attachment; filename="tingye-ios-1.8.0-build37.ipa"'},{key:'Cache-Control',value:'public, max-age=31536000, immutable'},{key:'X-Content-Type-Options',value:'nosniff'}]},

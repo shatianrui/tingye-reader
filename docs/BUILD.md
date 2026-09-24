@@ -55,6 +55,22 @@ npm run build
 
 Vercel 项目 Root Directory 设置为 apps/web；将 .env.example 对应变量填入 Vercel 环境配置。也可在该目录使用 Vercel CLI link / deploy。此次导入未修改现有生产项目 Git 关联，也未触发部署。
 
+### 腾讯云 Docker 部署
+
+`deploy/tencent` 提供 Next.js standalone 镜像和 Caddy HTTPS 入口。默认域名为
+`129-226-201-249.sslip.io`，无需单独购买域名；上线前需在腾讯云防火墙放行 TCP
+80、443（以及可选的 UDP 443），并确保 Docker Compose 可用。
+
+```powershell
+Copy-Item deploy/tencent/.env.server.example deploy/tencent/.env.server
+# 填入与 Vercel Production 相同的数据库、Supabase 和 TTS 配置
+.\deploy\tencent\deploy.ps1
+```
+
+部署脚本通过 SSH 上传当前源码，在服务器构建镜像并启动服务。构建阶段会从现有
+Vercel 站点复制当前 Android 1.8.0 APK 和 iOS 1.8.0 IPA，并校验 SHA-256；
+镜像建成后下载不再依赖 Vercel。iOS OTA 安装要求 HTTPS，因此不要改成裸 IP。
+
 安装页依赖 public/releases 下的 APK / IPA。仓库只保留图标和展示截图，不包含安装包：部署前恢复对应版本安装文件，或将下载路由改为自己的持久制品存储，否则下载接口会缺少文件。不要用空的 releases 目录覆盖正在工作的生产下载站。每次发布核对版本、大小、SHA-256 和签名，再更新发布常量。
 
 .env.local、credentials.json、私钥、用户书籍和数据库备份禁止入库。db/supabase-ca.json 是验证数据库 TLS 的公开 CA，不是服务端密钥。

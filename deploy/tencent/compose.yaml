@@ -1,0 +1,32 @@
+services:
+  app:
+    build:
+      context: ../../apps/web
+      args:
+        RELEASE_SOURCE_ORIGIN: ${RELEASE_SOURCE_ORIGIN:-https://tingye-reader.vercel.app}
+    env_file:
+      - .env.server
+    environment:
+      APP_ORIGIN: https://${DOMAIN}
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2.10-alpine
+    depends_on:
+      app:
+        condition: service_healthy
+    environment:
+      DOMAIN: ${DOMAIN}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    restart: unless-stopped
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_data:
+  caddy_config:
