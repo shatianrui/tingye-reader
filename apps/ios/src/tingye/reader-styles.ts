@@ -13,6 +13,7 @@ readerErrorActionText:{fontSize:14,fontWeight:'600'},themeCard:{width:'22%',minH
 settingsSection:{borderRadius:20,borderWidth:StyleSheet.hairlineWidth,padding:18,gap:14},settingsSectionTitle:{fontSize:13,fontWeight:'600',letterSpacing:1.5},
 settingsRow:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:12},settingsHint:{fontSize:13,lineHeight:20},
 segmented:{flexDirection:'row',borderRadius:14,borderWidth:StyleSheet.hairlineWidth,padding:3,gap:3},segment:{flex:1,minHeight:44,borderRadius:11,alignItems:'center',justifyContent:'center',paddingHorizontal:6},
+einkPill:{height:36,paddingHorizontal:14,borderRadius:18,borderWidth:1,alignItems:'center',justifyContent:'center'},
 listenPill:{height:48,paddingHorizontal:20,borderRadius:24,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:8},
 pageNavButton:{width:44,height:44,borderRadius:22,alignItems:'center',justifyContent:'center'},pageTrack:{height:4,borderRadius:2,overflow:'hidden'},
 });

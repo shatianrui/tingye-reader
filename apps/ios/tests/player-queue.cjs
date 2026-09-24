@@ -48,7 +48,9 @@ function harness(blockPrefetch=false,androidSpeech=false,control={}){
  });
  return {player:result.exports.readerPlayer,requests,playlists,files,utterances,pagination:pagination.exports,progress:progress.exports,Cache:cache.exports.AudioCache,policy:policy.exports,release(){blockPrefetch=false;pending.splice(0).forEach(r=>r());}};
 }
-const book={id:'test',chapters:[{title:'一',text:'甲。\n乙。\n丙。\n丁。\n戊。\n己。\n庚。\n辛。\n壬。'}]};
+// Prose-length paragraphs: each stays its own track (short runs would merge).
+const prose=head=>head+'字'.repeat(62)+'。';
+const book={id:'test',chapters:[{title:'一',text:[...'甲乙丙丁戊己庚辛壬'].map(prose).join('\n')}]};
 const voice={provider:'glm',model:'glm-tts',voice:'tongtong',rate:1.25};
 module.exports={harness,tick};
 if(require.main===module)(async()=>{
@@ -60,7 +62,7 @@ if(require.main===module)(async()=>{
  h.player.togglePause();assert.equal(p.playing,true);assert.equal(p.playbackRate,.75);
  p.emit({currentIndex:3,isBuffering:false,didJustFinish:false});await tick();assert.equal(p.sources.length,9);
  p.emit({currentIndex:6,isBuffering:false,didJustFinish:false});await tick();assert.equal(p.sources.length,9);
- assert.deepEqual(h.requests,['甲。','乙。','丙。','丁。','戊。','己。','庚。','辛。','壬。']);
+ assert.deepEqual(h.requests,book.chapters[0].text.split('\n'));
  p.sources.forEach(s=>assert.ok(s.uri.endsWith('.wav')));
  p.emit({currentIndex:8,isBuffering:false,didJustFinish:true});assert.equal(h.player.snapshot().active,false);assert.equal(h.files.size,9,'stop retains bounded replay cache');h.player.clearCache();assert.equal(h.files.size,0);
  const switching=harness();
@@ -82,9 +84,10 @@ if(require.main===module)(async()=>{
  const paused=harness();await paused.player.start(book,0,0,voice,{startOffset:0,paused:true});await tick();
  assert.equal(paused.playlists[0].plays,0,'changing voice preserves pause');paused.player.stop();
  const grouped=harness(),positions=[];grouped.player.onPosition=(_,si)=>positions.push(si);
- await grouped.player.start({id:'context',chapters:[{title:'一',text:'甲乙丙。丁戊己。庚辛壬。\n下一段。'}]},0,0,voice);
+ const opening='甲乙丙。丁戊己。庚辛壬'+'字'.repeat(50)+'。';
+ await grouped.player.start({id:'context',chapters:[{title:'一',text:opening+'\n下一段。'}]},0,0,voice);
  await tick();
- assert.deepEqual(grouped.requests,['甲乙丙。丁戊己。庚辛壬。','下一段。'],'same paragraph shares prosody without crossing paragraph breaks');
+ assert.deepEqual(grouped.requests,[opening,'下一段。'],'same paragraph shares prosody; a prose paragraph never absorbs the next one');
  grouped.playlists[0].emit({currentIndex:0,currentTime:5,duration:9,isBuffering:false,playing:true});
  assert.equal(positions.at(-1),1,'grouped narration keeps original sentence highlight IDs');grouped.player.stop();
  const atomic=harness(),snapshots=[];
@@ -111,6 +114,18 @@ if(require.main===module)(async()=>{
  assert.equal(midSentence.requests[0],'乙。丙。','resuming must not replay earlier sentences in the same paragraph');midSentence.player.stop();
  const limit=grouped.pagination.narrationGroups('甲乙丙丁。'.repeat(180));
  assert.ok(limit.every(item=>item.text.length<=400));assert.equal(limit.map(item=>item.text).join(''),'甲乙丙丁。'.repeat(180));
+ // Runs of short paragraphs (dialogue, headings) share one request so every
+ // line no longer pays a full synthesis round trip; prose never merges.
+ const {narrationGroups,SHORT_RUN_LIMIT}=grouped.pagination;
+ const dialogue='“来了？”\n“嗯。”\n他点点头。\n'+prose('窗外')+'\n“走吧。”\n“好。”';
+ const runs=narrationGroups(dialogue);
+ assert.deepEqual(Array.from(runs,g=>g.text),['“来了？”\n“嗯。”\n他点点头。',prose('窗外'),'“走吧。”\n“好。”'],'short lines merge, prose paragraph stays alone on both sides');
+ assert.deepEqual(Array.from(runs[0].anchors,a=>a.position),[0,1,2],'merged run keeps every original sentence ID');
+ runs.forEach(g=>assert.equal(g.text,dialogue.slice(g.start,g.end),'group text is an exact slice of the chapter'));
+ const lines=Array.from({length:40},(_,i)=>`第${i}行短句。`).join('\n'),capped=narrationGroups(lines);
+ assert.ok(capped.length>1&&capped.every(g=>g.text.length<=SHORT_RUN_LIMIT),'short runs are capped');
+ assert.deepEqual(Array.from(capped.flatMap(g=>g.anchors.map(a=>a.position))),Array.from({length:40},(_,i)=>i),'no sentence lost or duplicated');
+ assert.equal(narrationGroups(dialogue,dialogue.indexOf('“嗯'))[0].text,'“嗯。”\n他点点头。','resuming mid-run starts at the chosen line');
  // A sentence spans three pages but stays in one audio track. Page turns
  // update the cursor only: no second TTS request, pause, seek or restart.
  const paged=harness(),moves=[];paged.player.onPosition=(ci,si,offset)=>moves.push({ci,si,offset});
@@ -174,12 +189,12 @@ if(require.main===module)(async()=>{
  console.log('PASS: whole-sentence synthesis, within-track page turns without audio operations, pause/buffer guards, manual start, native speech boundaries and read-only WAV envelope.');
  console.log('PASS: paragraph prosody groups, original sentence IDs, request size limits, live rate changes, initial-buffer pause and paused voice replacement.');
  const android=harness(false,true);
- const narrating=android.player.start({id:'android',chapters:[{title:'一',text:'甲乙丙丁戊己。\n下一段。'}]},0,0,{...voice,provider:'system'});
+ const narrating=android.player.start({id:'android',chapters:[{title:'一',text:'甲乙丙丁戊己。\n'+prose('下一段')}]},0,0,{...voice,provider:'system'});
  await tick();android.utterances[0].onBoundary({charIndex:3});android.player.togglePause();await tick();
  assert.equal(android.player.snapshot().active,true);assert.equal(android.player.snapshot().paused,true);assert.equal(android.requests.length,1,'pause must not advance to next paragraph');
  android.player.togglePause();await tick();assert.equal(android.requests[1],'丁戊己。','Android resumes at latest word boundary');
  android.utterances[1].onBoundary({charIndex:1});android.player.setRate(1.75);await tick();assert.equal(android.utterances.at(-1).rate,1.75);assert.equal(android.requests.at(-1),'戊己。');
- android.utterances.at(-1).onDone();await tick();assert.equal(android.requests.at(-1),'下一段。');
+ android.utterances.at(-1).onDone();await tick();assert.equal(android.requests.at(-1),prose('下一段'));
  android.player.stop();await narrating;assert.equal(android.player.snapshot().active,false);
  console.log('PASS: Android system TTS pause/resume retains position and stop cancels narration.');
  // New buffering policy: measure actual unmodified WAV duration, keep long
@@ -208,7 +223,7 @@ if(require.main===module)(async()=>{
  assert.equal(ordered.requests.length,beforeReplay,'same voice/text reuses audio even after speed changes');
  ordered.files.clear();ordered.player.stop();await ordered.player.start(book,0,0,voice);await tick();assert.ok(ordered.requests.length>beforeReplay,'OS cache deletion safely triggers new synthesis');
  ordered.player.clearCache();const afterLogout=ordered.requests.length;await ordered.player.start(book,0,0,voice);await tick();assert.ok(ordered.requests.length>afterLogout,'account cache reset does not reuse prior audio');ordered.player.clearCache();
- const many={id:'many',chapters:[{title:'一',text:Array.from({length:30},(_,i)=>`段落${i}。`).join('\n')}]};
+ const many={id:'many',chapters:[{title:'一',text:Array.from({length:30},(_,i)=>prose(`段落${i}`)).join('\n')}]};
  const seconds=harness(false,false,{bytes:()=>wavFor(20)});await seconds.player.start(many,0,0,{...voice,rate:1});await tick();assert.equal(seconds.playlists[0].sources.length,5);
  seconds.player.setRate(2);await tick();assert.ok(seconds.playlists[0].sources.length>5,'2x extends lookahead using playback seconds');assert.ok(seconds.playlists[0].sources.length<=12);
  assert.equal(seconds.playlists[0].plays,1);assert.equal(seconds.playlists[0].pauses,0);seconds.player.clearCache();

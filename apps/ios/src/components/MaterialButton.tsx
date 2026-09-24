@@ -96,8 +96,8 @@ export default function MaterialButton({
         pressed && styles.pressed,
         style,
       ]}
-      accessibilityRole="button"
-      accessibilityState={{ disabled: !!disabled }}
+      accessibilityRole={rest.accessibilityRole ?? 'button'}
+      accessibilityState={{ ...rest.accessibilityState, disabled: !!disabled }}
     >
       {icon ? <View style={styles.icon}><GlyphIcon glyph={icon} size={18} color={textColor} /></View> : null}
       <Text style={[styles.label, { color: textColor }]} numberOfLines={1}>

@@ -35,14 +35,32 @@ export function speechSegments(text: string, startOffset = 0) {
   });
 }
 
+// A paragraph at most this long (a dialogue line, a heading) may share a
+// request with its neighbours, up to SHORT_RUN_LIMIT characters in total.
+export const SHORT_PARAGRAPH = 60, SHORT_RUN_LIMIT = 200;
+
+function paragraphLength(text: string, offset: number) {
+  let start = offset, end = offset;
+  while (start > 0 && !/[\r\n]/.test(text[start - 1])) start--;
+  while (end < text.length && !/[\r\n]/.test(text[end])) end++;
+  return text.slice(start, end).trim().length;
+}
+
 // Preserve the book's sentence IDs while giving TTS the context of a paragraph.
-// Page geometry never participates in narration boundaries.
+// Page geometry never participates in narration boundaries. Prose paragraphs
+// keep their own prosody group; runs of short paragraphs share one, because each
+// request costs a full synthesis round trip, and a run of one-line paragraphs
+// (dialogue) otherwise drains the audio queue faster than it can be refilled.
 export function narrationGroups(text: string, startOffset = 0, position = 0) {
   type Segment = ReturnType<typeof speechSegments>[number];
   const groups: (Segment & { anchors: Segment[] })[] = [];
   for (const segment of speechSegments(text, startOffset).filter(s=>s.position>=position)) {
     const previous = groups.at(-1);
-    if (previous && segment.end-previous.start<=400 && !/[\r\n]/.test(text.slice(previous.end,segment.start))) {
+    const paragraphBreak = !!previous && /[\r\n]/.test(text.slice(previous.end, segment.start));
+    const sameParagraph = !!previous && !paragraphBreak && segment.end-previous.start<=400;
+    const shortRun = !!previous && paragraphBreak && segment.end-previous.start<=SHORT_RUN_LIMIT
+      && paragraphLength(text, previous.end-1)<=SHORT_PARAGRAPH && paragraphLength(text, segment.start)<=SHORT_PARAGRAPH;
+    if (previous && (sameParagraph || shortRun)) {
       previous.end=segment.end;
       previous.text=text.slice(previous.start,previous.end);
       previous.anchors.push(segment);

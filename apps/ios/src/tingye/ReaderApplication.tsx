@@ -154,6 +154,9 @@ export default function ReaderApplication({services=readerServices}:{services?:R
  const play=()=>{if(!book||!pageEnds.length)return;setControlsVisible(false);if(player.active)readerPlayer.togglePause();else{const si=ranges.findIndex(r=>r.end>pageStart);setPosition(Math.max(0,si));void readerPlayer.start(book,chapter,Math.max(0,si),prefs.voice,{startOffset:pageStart});}};
  const followBookLink=(href:string)=>{if(!book)return;const target=resourcePath(currentChapter?.document?.path||'',href);const ci=book.chapters.findIndex(c=>c.document?.path===target);if(ci>=0)jump(ci);};
  const openSettings=()=>{setDraftVoice({...prefs.voice});setVoiceNotice('');setPanel('settings');};
+ // 电子书模式 = the grayscale 墨水屏 theme plus the e-ink flash page turn; off returns to 暖纸 + slide.
+ const einkMode=prefs.theme==='eink'&&prefs.pageTurnStyle==='eink';
+ const setEinkMode=(on:boolean)=>setPrefs(p=>on?{...p,theme:'eink',pageTurnStyle:'eink'}:{...p,theme:'paper',pageTurnStyle:'slide'});
  const changeVoice=(voice:VoiceConfig)=>setDraftVoice(voice);
  const changeRate=(rate:number)=>{readerPlayer.setRate(rate);setPrefs(p=>({...p,voice:{...p.voice,rate}}));setDraftVoice(v=>({...v,rate}));};
  const closePanel=()=>{
@@ -198,7 +201,7 @@ export default function ReaderApplication({services=readerServices}:{services?:R
       importBooks:()=>{void importBooks().catch(e=>setNotice(errorText(e)));},
       refresh:()=>{void synchronize();},
       actions:id=>{const item=books.find(b=>b.id===id);if(item&&!item.sample)bookActions(item);},
-      settings:openSettings,logout:()=>{void logout();},dismissNotice:()=>setNotice('')}}><RootNavigator/></LibraryUIContext.Provider></View>}
+      settings:openSettings,logout:()=>{void logout();},dismissNotice:()=>setNotice(''),einkMode,setEinkMode}}><RootNavigator/></LibraryUIContext.Provider></View>}
   {identity&&book&&<View style={[styles.reader,{backgroundColor:colors.surface}]} testID="immersive-reader">
     <View style={[styles.readingHeading,{height:layout.desktop?52:layout.compactHeight?24:34,width:layout.contentWidth,alignSelf:'center',paddingHorizontal:0,flexDirection:'row',alignItems:'center',gap:8}]}>
       {layout.desktop&&<ReaderButton colors={colors} label="书架" onPress={returnToShelf}/>}
@@ -221,6 +224,7 @@ export default function ReaderApplication({services=readerServices}:{services?:R
       <View testID="reader-top-toolbar" style={[styles.readerTopToolbar,{left:(width-layout.controlsWidth)/2,right:(width-layout.controlsWidth)/2,backgroundColor:colors.background,borderBottomColor:colors.line}]}>
         <Pressable accessibilityRole="button" accessibilityLabel="返回书架" onPress={()=>{returnToShelf();}} style={styles.iconButton}><Icon name="back" size={26} color={colors.text}/></Pressable>
         <Text numberOfLines={1} style={{flex:1,fontSize:16,fontWeight:'600',color:colors.text}}>{book.title}</Text>
+        <Pressable accessibilityRole="switch" accessibilityLabel="电子书模式" accessibilityState={{checked:einkMode}} hitSlop={6} onPress={()=>setEinkMode(!einkMode)} style={({pressed})=>[styles.einkPill,{backgroundColor:einkMode?colors.accent:'transparent',borderColor:einkMode?colors.accent:colors.line,opacity:pressed?0.7:1}]}><Text style={{fontSize:14,fontWeight:'600',color:einkMode?colors.onAccent:colors.text}}>电子书</Text></Pressable>
         <Pressable accessibilityRole="button" accessibilityLabel="设置" onPress={openSettings} style={styles.iconButton}><Icon name="more" size={24} color={colors.text}/></Pressable>
       </View>
       <View testID="reader-bottom-toolbar" style={[styles.readerBottomToolbar,{left:(width-layout.controlsWidth)/2,right:(width-layout.controlsWidth)/2,paddingHorizontal:width<360?10:22,backgroundColor:colors.background,borderTopColor:colors.line}]}>
@@ -249,7 +253,7 @@ export default function ReaderApplication({services=readerServices}:{services?:R
      <ReaderSection colors={colors} title="外观">
       <View style={styles.settingsRow}>
        <View style={{flex:1,gap:4}}><Text style={[styles.label,{color:colors.text}]}>电子书模式</Text><Text style={[styles.settingsHint,{color:colors.muted}]}>像 Kindle 一样：灰阶墨水屏纸张，翻页时短暂黑闪刷新。</Text></View>
-       <Switch accessibilityLabel="电子书模式" value={prefs.theme==='eink'&&prefs.pageTurnStyle==='eink'} onValueChange={on=>setPrefs(p=>on?{...p,theme:'eink',pageTurnStyle:'eink'}:{...p,theme:'paper',pageTurnStyle:'slide'})} trackColor={{false:colors.line,true:colors.accent}} ios_backgroundColor={colors.line}/>
+       <Switch accessibilityLabel="电子书模式" value={einkMode} onValueChange={setEinkMode} trackColor={{false:colors.line,true:colors.accent}} ios_backgroundColor={colors.line}/>
       </View>
       <Text style={[styles.label,{color:colors.text}]}>阅读背景</Text>
       <View style={styles.chips}>{readingThemes.map(theme=><Pressable key={theme.id} accessibilityRole="button" accessibilityLabel={theme.name} accessibilityState={{selected:prefs.theme===theme.id}} onPress={()=>setPrefs(p=>({...p,theme:theme.id}))} style={[styles.themeCard,{backgroundColor:theme.surface,borderColor:prefs.theme===theme.id?colors.accent:colors.line,borderWidth:prefs.theme===theme.id?2:1}]}><Text style={{fontSize:23,color:theme.text}}>文</Text><Text style={{fontSize:13,color:theme.text,marginTop:8,alignSelf:'stretch',textAlign:'center',marginHorizontal:4}}>{theme.name}{prefs.theme===theme.id?' ✓':''}</Text></Pressable>)}</View>
