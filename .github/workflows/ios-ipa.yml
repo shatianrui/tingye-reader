@@ -39,6 +39,8 @@ jobs:
       - run: npm run test:reader
       - run: npm run build:reader
       - run: npm run prepare:native
+      - name: Apply Xcode 26 JSI compatibility fix
+        run: node tools/patch-jsi-bridging.cjs
       - name: Generate native Xcode project
         run: |
           npx expo prebuild --platform ios --clean --no-install

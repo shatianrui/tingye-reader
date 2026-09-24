@@ -31,7 +31,9 @@ Runner 上调用 CocoaPods 与 Xcode 构建，不使用 EAS 云构建。工作�
 检查、完整测试和真实 WebView 阅读器测试，再归档未签名的 iOS 真机 app，
 将其打包为 `*-unsigned.ipa`，校验版本、Bundle ID、arm64 架构、无签名及
 归档完整性，并上传 IPA 与 SHA-256 为 Actions Artifact。无须 Apple 证书或
-GitHub Secrets。
+GitHub Secrets。构建使用 Xcode 26.3，并对已安装的 `expo-modules-jsi`
+执行限定到 `RuntimeScheduler` 构造函数的编译器兼容修补；若上游源码改变，
+脚本会失败而非静默覆盖。
 
 **未签名 IPA 不能通过网站 OTA 或直接安装在普通 iPhone 上。** 后续若要安装，
 仍须用有效 Apple 证书和包含目标设备 UDID 的 Ad Hoc 描述文件重新签名；
