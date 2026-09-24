@@ -29,6 +29,10 @@ jobs:
           node-version: '22'
           cache: npm
           cache-dependency-path: apps/ios/package-lock.json
+      - name: Select Xcode with Swift 6.2
+        run: |
+          echo "DEVELOPER_DIR=/Applications/Xcode_26.3.app/Contents/Developer" >> "$GITHUB_ENV"
+          DEVELOPER_DIR=/Applications/Xcode_26.3.app/Contents/Developer xcodebuild -version
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
