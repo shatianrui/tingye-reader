@@ -103,6 +103,14 @@ export default function ShelfScreen({ navigation }: Props) {
             onPress={ui.importBooks}
             style={{ marginTop: spacingTokens.xl }}
           />
+          <MaterialButton
+            label={ui.einkMode ? '电子书模式 · 已开启' : '电子书模式'}
+            variant={ui.einkMode ? 'filled' : 'outlined'}
+            accessibilityRole="switch"
+            accessibilityState={{ checked: ui.einkMode }}
+            onPress={() => ui.setEinkMode(!ui.einkMode)}
+            style={{ marginTop: spacingTokens.md }}
+          />
         </View>
       </View>
     );
@@ -130,7 +138,7 @@ export default function ShelfScreen({ navigation }: Props) {
           paddingBottom: insets.bottom + 100,
         }}
         ListHeaderComponent={<View onLayout={event=>{headerHeight.current=event.nativeEvent.layout.height;}}>
-          <View style={{flexDirection:"row",flexWrap:"wrap",gap:8,marginTop:12}}><MaterialButton label="导入书籍" icon="＋" disabled={ui.busy} onPress={ui.importBooks}/><MaterialButton label={ui.busy?"同步中…":"同步"} variant="tonal" disabled={ui.busy} onPress={ui.refresh}/><MaterialButton label={ui.einkMode?"电子书模式 · 已开启":"电子书模式"} variant={ui.einkMode?"filled":"outlined"} accessibilityState={{checked:ui.einkMode}} onPress={()=>ui.setEinkMode(!ui.einkMode)}/></View>
+          <View style={{flexDirection:"row",flexWrap:"wrap",gap:8,marginTop:12}}><MaterialButton label="导入书籍" icon="＋" disabled={ui.busy} onPress={ui.importBooks}/><MaterialButton label={ui.busy?"同步中…":"同步"} variant="tonal" disabled={ui.busy} onPress={ui.refresh}/><MaterialButton label={ui.einkMode?"电子书模式 · 已开启":"电子书模式"} variant={ui.einkMode?"filled":"outlined"} accessibilityRole="switch" accessibilityState={{checked:ui.einkMode}} onPress={()=>ui.setEinkMode(!ui.einkMode)}/></View>
           {!!ui.notice&&<Pressable onPress={ui.dismissNotice}><Text style={{color:theme.colors.onSurfaceVariant,paddingVertical:12}}>{ui.notice}</Text></Pressable>}
           {continueReading ? (
             <ContinueReadingCard
