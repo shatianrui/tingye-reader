@@ -43,8 +43,8 @@ jobs:
         id: release
         shell: bash
         run: |
-          workspace=$(find ios -name '*.xcworkspace' -print -quit)
-          test -n "$workspace" || { echo "::error::Xcode workspace was not generated"; exit 1; }
+          workspace=$(find ios -maxdepth 1 -name '*.xcworkspace' -print -quit)
+          test -n "$workspace" || { echo "::error::CocoaPods Xcode workspace was not generated"; exit 1; }
           scheme=$(xcodebuild -workspace "$workspace" -list -json | python3 -c 'import json,sys; print(json.load(sys.stdin)["workspace"]["schemes"][0])')
           archive="$RUNNER_TEMP/Tingye.xcarchive"
           xcodebuild archive \
