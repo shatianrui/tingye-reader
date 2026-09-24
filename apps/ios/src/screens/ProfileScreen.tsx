@@ -1,7 +1,7 @@
 import { DisplayText as Text } from '../components/DisplayText';
 import React, { useMemo, useState } from 'react';
 import appConfig from '../../app.json';
-import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {useLibraryUI} from '../tingye/library-ui';
 import MaterialAppBar from '../components/MaterialAppBar';
@@ -200,6 +200,25 @@ export default function ProfileScreen() {
           ]}
         >
           <ThemeSwitcher layout="list" />
+        </View>
+
+        <Text style={[styles.sectionLabel, { color: theme.colors.onSurfaceVariant }]}>阅读</Text>
+        <View style={[styles.tileGroup, { backgroundColor: theme.colors.surfaceContainerLow }]}>
+          <View style={[styles.tile, { gap: spacingTokens.md }]}>
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text style={{ fontSize: 15, fontWeight: '500', color: theme.colors.onSurface }}>电子书模式</Text>
+              <Text style={{ fontSize: 12, lineHeight: 17, color: theme.colors.onSurfaceVariant }}>
+                像 Kindle 一样的灰阶墨水屏纸张，翻页时短暂黑闪。打开任意一本书就能看到。
+              </Text>
+            </View>
+            <Switch
+              accessibilityLabel="电子书模式"
+              value={ui.einkMode}
+              onValueChange={ui.setEinkMode}
+              trackColor={{ false: theme.colors.outlineVariant, true: theme.colors.primary }}
+              ios_backgroundColor={theme.colors.outlineVariant}
+            />
+          </View>
         </View>
 
         <Text

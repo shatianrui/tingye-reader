@@ -25,12 +25,16 @@ import MaterialAppBar from '../components/MaterialAppBar';
 import MaterialProgressBar from '../components/MaterialProgressBar';
 import MaterialButton from '../components/MaterialButton';
 import MaterialChip from '../components/MaterialChip';
+import appConfig from '../../app.json';
 import { useAppTheme } from '../theme/useAppTheme';
 import { spacing as spacingTokens, shape as shapeTokens } from '../theme/tokens';
 
 interface Props {
   navigation: NativeStackNavigationProp<RootStackParamList>;
 }
+
+// Shown on the first screen so the installed build can be confirmed without digging.
+const shelfVersion = `听页 v${appConfig.expo.version} (${appConfig.expo.ios.buildNumber})`;
 
 function showActionSheet(onDetail: () => void, onRemove: () => void) {
   if (Platform.OS === 'ios') {
@@ -75,7 +79,7 @@ export default function ShelfScreen({ navigation }: Props) {
     return (
       <View style={[styles.empty, { backgroundColor: theme.colors.background }]}>
         <MaterialAppBar
-          title="书架"
+          title="书架" overline={shelfVersion}
           variant="small"
           trailingIcon="⌕"
           onTrailingPress={() => navigation.navigate('Search')}
@@ -107,7 +111,7 @@ export default function ShelfScreen({ navigation }: Props) {
   return (
     <View style={[styles.screen, { backgroundColor: theme.colors.background }]}>
       <MaterialAppBar
-        title="书架"
+        title="书架" overline={shelfVersion}
         variant="small"
         trailingIcon="⌕"
         onTrailingPress={() => navigation.navigate('Search')}
@@ -126,7 +130,7 @@ export default function ShelfScreen({ navigation }: Props) {
           paddingBottom: insets.bottom + 100,
         }}
         ListHeaderComponent={<View onLayout={event=>{headerHeight.current=event.nativeEvent.layout.height;}}>
-          <View style={{flexDirection:"row",flexWrap:"wrap",gap:8,marginTop:12}}><MaterialButton label="导入书籍" icon="＋" disabled={ui.busy} onPress={ui.importBooks}/><MaterialButton label={ui.busy?"同步中…":"同步"} variant="tonal" disabled={ui.busy} onPress={ui.refresh}/></View>
+          <View style={{flexDirection:"row",flexWrap:"wrap",gap:8,marginTop:12}}><MaterialButton label="导入书籍" icon="＋" disabled={ui.busy} onPress={ui.importBooks}/><MaterialButton label={ui.busy?"同步中…":"同步"} variant="tonal" disabled={ui.busy} onPress={ui.refresh}/><MaterialButton label={ui.einkMode?"电子书模式 · 已开启":"电子书模式"} variant={ui.einkMode?"filled":"outlined"} accessibilityState={{checked:ui.einkMode}} onPress={()=>ui.setEinkMode(!ui.einkMode)}/></View>
           {!!ui.notice&&<Pressable onPress={ui.dismissNotice}><Text style={{color:theme.colors.onSurfaceVariant,paddingVertical:12}}>{ui.notice}</Text></Pressable>}
           {continueReading ? (
             <ContinueReadingCard
