@@ -5,7 +5,7 @@ import { Platform } from 'react-native';
 import { request } from './client';
 import {withTtsRetry} from './tts-retry';
 import { type Book } from './books';
-import { narrationGroups, sentenceRanges } from './pagination';
+import { narrationGroups, sentenceRanges, CLOUD_GROUP_CHARS, CLOUD_FIRST_GROUP_CHARS } from './pagination';
 import { wavEnvelope, estimatedSpeechOffset, type SpeechEnvelope } from './speech-progress';
 import {mapTimedWords,speechMarkAt,pageOffsetWithinMark,type SpeechMark,type TimedWord} from './speech-timing';
 import {prepareSpeechAlignment,alignSpeechFile} from './native-speech-alignment';
@@ -17,6 +17,46 @@ type Position = ReturnType<typeof narrationGroups>[number] & { chapter: number; 
 type PlaybackLayout = { startOffset: number; paused?: boolean };
 export type ReadingCursor = { chapter: number; position: number; offset: number; start: number; end: number };
 type State = { active: boolean; paused: boolean; buffering: boolean; chapter: number; position: number; cursor?: ReadingCursor; error: string;timingNotice?:string };
+// A 30 s MiniMax clip is ~1 MB of hex. Regex splitting plus parseInt allocates
+// one string per byte and stalls the JS thread that services the audio queue.
+export function hexBytes(hex:string){
+  const out=new Uint8Array(hex.length>>1);
+  for(let i=0,j=0;i<out.length;i++,j+=2){const a=hex.charCodeAt(j),b=hex.charCodeAt(j+1);out[i]=(((a&15)+(a>>6)*9)<<4)|((b&15)+(b>>6)*9);}
+  return out;
+}
+const OSS_HOST=/^minimax-algeng-chat-tts\.oss-cn-[a-z0-9-]+\.aliyuncs\.com$/;
+export function providerFileUrl(value:unknown){
+  if(typeof value!=='string'||value.length>4096)return undefined;
+  const match=/^https:\/\/([^/?#@:]+)\//.exec(value);
+  return match&&OSS_HOST.test(match[1])?value:undefined;
+}
+export function minimaxSubtitleWords(segments:unknown){
+  const words:TimedWord[]=[];
+  if(!Array.isArray(segments))return words;
+  for(const segment of segments){
+    let previous:{begin:number;end:number;text:string}|undefined;
+    for(const w of Array.isArray(segment?.timestamped_words)?segment.timestamped_words:[]){
+      if(typeof w?.word!=='string'||w.word.length>=300||!Number.isFinite(w.time_begin)||!Number.isFinite(w.time_end)||w.time_begin<0||w.time_end<=w.time_begin)continue;
+      const repeated=previous&&Number.isInteger(w.word_begin)&&w.word_begin===previous.begin&&w.word_end===previous.end&&w.word===previous.text;
+      if(repeated)words[words.length-1].endTime=Math.max(words[words.length-1].endTime,w.time_end/1000);
+      else words.push({text:w.word,startTime:w.time_begin/1000,endTime:w.time_end/1000});
+      previous={begin:w.word_begin,end:w.word_end,text:w.word};
+      if(words.length>4000)return [];
+    }
+  }
+  return words;
+}
+// MiniMax files live in mainland storage next to most listeners; fetching them
+// directly avoids relaying every clip through the overseas server twice.
+async function directMinimaxAudio(data:{url?:unknown;subtitleUrl?:unknown},signal:AbortSignal){
+  const url=providerFileUrl(data.url),subtitleUrl=providerFileUrl(data.subtitleUrl);
+  if(!url)throw Error('语音地址无效');
+  const subtitles=subtitleUrl?fetch(subtitleUrl,{signal,redirect:'error'}).then(r=>r.ok?r.json():[]).then(minimaxSubtitleWords,()=>[] as TimedWord[]):Promise.resolve([] as TimedWord[]);
+  const response=await fetch(url,{signal,redirect:'error'});
+  if(!response.ok)throw Error('语音下载失败');
+  const bytes=new Uint8Array(await response.arrayBuffer());
+  return {bytes,words:await subtitles};
+}
 class ReaderPlayer {
   private listeners = new Set<() => void>();
   private generation = 0;
@@ -122,7 +162,8 @@ class ReaderPlayer {
       while(items.length<count && nextChapter<book.chapters.length && generation===this.generation) {
         const ci=nextChapter++,text=book.chapters[ci].text;
         chapterSentences.set(ci,sentenceRanges(text));
-        for(const segment of narrationGroups(text,ci===chapter?(layout?.startOffset??0):0,ci===chapter?position:0)) {
+        const limit=config.provider==='system'?400:CLOUD_GROUP_CHARS,first=config.provider!=='system'&&ci===chapter?CLOUD_FIRST_GROUP_CHARS:limit;
+        for(const segment of narrationGroups(text,ci===chapter?(layout?.startOffset??0):0,ci===chapter?position:0,limit,first)) {
           items.push({...segment,chapter:ci});
         }
       }
@@ -189,11 +230,23 @@ class ReaderPlayer {
         const requestedAt=Date.now();
         const bytes=await withTtsRetry(async requestSignal=>{
           let bytes:Uint8Array;
-          const response = await request('/api/tts',{method:'POST',body:JSON.stringify({provider:config.provider,model:config.model,voice:config.voice,input:item.text,timing:true}),signal:requestSignal});
+          const direct=config.provider==='minimax';
+          const fetchClip=(delivery?:'url')=>request('/api/tts',{method:'POST',body:JSON.stringify({provider:config.provider,model:config.model,voice:config.voice,input:item.text,timing:true,...(delivery?{delivery}:{})}),signal:requestSignal});
+          let response = await fetchClip(direct?'url':undefined);
           if(response.headers?.get('content-type')?.includes('application/json')){
-            const data=await response.json() as {audio:string;words:TimedWord[]};
+            let data=await response.json() as {audio?:string;words?:TimedWord[];delivery?:string;url?:string;subtitleUrl?:string};
+            if(data.delivery==='url'){
+              try{const file=await directMinimaxAudio(data,requestSignal);item.marks=mapTimedWords(item.text,file.words);return file.bytes;}
+              catch(error){
+                if(requestSignal.aborted)throw error;
+                // Storage unreachable from this network: fall back to the server relay.
+                response=await fetchClip();
+                if(!response.headers?.get('content-type')?.includes('application/json'))return new Uint8Array(await response.arrayBuffer());
+                data=await response.json() as typeof data;
+              }
+            }
             if(typeof data.audio!=='string'||!data.audio.length||data.audio.length>16*1024*1024||data.audio.length%2||!/^[0-9a-f]+$/i.test(data.audio))throw Error('语音返回格式异常');
-            bytes=Uint8Array.from(data.audio.match(/../g)!,v=>parseInt(v,16));
+            bytes=hexBytes(data.audio);
             item.marks=mapTimedWords(item.text,Array.isArray(data.words)?data.words:[]);
           }else bytes = new Uint8Array(await response.arrayBuffer());
           return bytes;

@@ -20,7 +20,7 @@ function harness(blockPrefetch=false,androidSpeech=false,control={}){
  // Native AudioSource is an Expo Record. The factory normalizes strings;
  // SDK 57's imperative add() goes straight to Swift and requires the object.
  const validate=source=>{if(!source||typeof source!=='object'||typeof source.uri!=='string')throw new Error('Native AudioSource requires a uri record');return source;};
- vm.runInNewContext(compile('player.ts'),{exports:result.exports,module:result,AbortController,Uint8Array,Error,setTimeout,clearTimeout,console,
+ vm.runInNewContext(compile('player.ts'),{exports:result.exports,module:result,AbortController,Uint8Array,Error,setTimeout,clearTimeout,console,fetch:(...args)=>control.fetch?control.fetch(...args):Promise.reject(new Error('offline')),
   require:id=>{
    if(id==='./books')return books.exports;
    if(id==='./pagination')return pagination.exports;
@@ -35,7 +35,7 @@ function harness(blockPrefetch=false,androidSpeech=false,control={}){
    if(id==='expo-secure-store')return {getItemAsync:async()=>null};
    if(id==='expo-speech')return {stop:async()=>{if(androidSpeech)utterances.at(-1)?.onStopped();},speak:(text,options)=>{requests.push(text);utterances.push(options);if(!androidSpeech)setImmediate(()=>{options.onBoundary?.({charIndex:3,charLength:1});options.onBoundary?.({charIndex:6,charLength:1});options.onDone();});}};
    if(id==='expo-file-system')return filesystem;
-   if(id==='./client')return {request:async(_,options)=>{const text=JSON.parse(options.body).input,index=requests.length;requests.push(text);await control.gate?.(index,text);if(blockPrefetch&&requests.length>2)await new Promise(resolve=>pending.push(resolve));return control.response?.(text,index)??{arrayBuffer:async()=>(control.bytes?.(text,index)??new Uint8Array([1,2,3])).buffer};}};
+   if(id==='./client')return {request:async(_,options)=>{control.bodies?.push(JSON.parse(options.body));const text=JSON.parse(options.body).input,index=requests.length;requests.push(text);await control.gate?.(index,text);if(blockPrefetch&&requests.length>2)await new Promise(resolve=>pending.push(resolve));return control.response?.(text,index)??{arrayBuffer:async()=>(control.bytes?.(text,index)??new Uint8Array([1,2,3])).buffer};}};
    if(id==='expo-audio')return {setAudioModeAsync:async()=>{},createAudioPlaylist:({sources})=>{
     const p={sources:sources.map(s=>validate(typeof s==='string'?{uri:s}:s)),skips:[],plays:0,pauses:0,destroyed:false,playing:false,
      add(s){validate(s);assert.equal(this.destroyed,false);this.sources.push(s);},
@@ -46,7 +46,7 @@ function harness(blockPrefetch=false,androidSpeech=false,control={}){
    throw new Error('Unexpected dependency '+id);
   }
  });
- return {player:result.exports.readerPlayer,requests,playlists,files,utterances,pagination:pagination.exports,progress:progress.exports,Cache:cache.exports.AudioCache,policy:policy.exports,release(){blockPrefetch=false;pending.splice(0).forEach(r=>r());}};
+ return {player:result.exports.readerPlayer,hex:result.exports.hexBytes,requests,playlists,files,utterances,pagination:pagination.exports,progress:progress.exports,Cache:cache.exports.AudioCache,policy:policy.exports,release(){blockPrefetch=false;pending.splice(0).forEach(r=>r());}};
 }
 const book={id:'test',chapters:[{title:'一',text:'甲。\n乙。\n丙。\n丁。\n戊。\n己。\n庚。\n辛。\n壬。'}]};
 const voice={provider:'glm',model:'glm-tts',voice:'tongtong',rate:1.25};
@@ -111,6 +111,11 @@ if(require.main===module)(async()=>{
  assert.equal(midSentence.requests[0],'乙。丙。','resuming must not replay earlier sentences in the same paragraph');midSentence.player.stop();
  const limit=grouped.pagination.narrationGroups('甲乙丙丁。'.repeat(180));
  assert.ok(limit.every(item=>item.text.length<=400));assert.equal(limit.map(item=>item.text).join(''),'甲乙丙丁。'.repeat(180));
+ const cloudGroups=grouped.pagination.narrationGroups('甲乙丙丁。'.repeat(180),0,0,grouped.pagination.CLOUD_GROUP_CHARS,grouped.pagination.CLOUD_FIRST_GROUP_CHARS);
+ assert.ok(cloudGroups[0].text.length<=60&&cloudGroups.every(item=>item.text.length<=160));assert.equal(cloudGroups.map(item=>item.text).join(''),'甲乙丙丁。'.repeat(180));
+ const clipped=harness();await clipped.player.start({id:'long-cloud',chapters:[{title:'一',text:'甲乙丙丁。'.repeat(80)}]},0,0,voice);await tick();
+ assert.ok(clipped.requests[0].length<=60&&clipped.requests.every(text=>text.length<=160),'cloud clips stay well inside the synthesis timeout');clipped.player.stop();
+ assert.deepEqual([...clipped.hex('00ff7FaB09')],[0,255,127,171,9]);
  // A sentence spans three pages but stays in one audio track. Page turns
  // update the cursor only: no second TTS request, pause, seek or restart.
  const paged=harness(),moves=[];paged.player.onPosition=(ci,si,offset)=>moves.push({ci,si,offset});
@@ -155,6 +160,18 @@ if(require.main===module)(async()=>{
  await brokenTiming.player.start({id:'broken',chapters:[{title:'一',text:'甲乙。丙丁。'}]},0,0,{...voice,provider:'minimax'});
  brokenTiming.playlists[0].emit({...ns,currentTime:4,duration:5});
  assert.equal(brokenTiming.player.snapshot().cursor.position,1);assert.match(brokenTiming.player.snapshot().timingNotice,/进度估算/);assert.equal(brokenTiming.player.snapshot().error,'');brokenTiming.player.stop();
+ const oss='https://minimax-algeng-chat-tts.oss-cn-wulanchabu.aliyuncs.com/clip.mp3?Signature=x',subs='https://minimax-algeng-chat-tts.oss-cn-wulanchabu.aliyuncs.com/clip.json';
+ const fetched=[],directBodies=[];
+ const direct=harness(false,false,{bodies:directBodies,response:()=>({headers:{get:()=> 'application/json'},json:async()=>({format:'mp3',delivery:'url',url:oss,subtitleUrl:subs})}),fetch:async(url,options)=>{fetched.push({url,options});return url===subs?{ok:true,json:async()=>[{timestamped_words:[{word:'甲乙',time_begin:0,time_end:2000},{word:'丙丁',time_begin:3000,time_end:5000}]}]}:{ok:true,arrayBuffer:async()=>new Uint8Array([7,8,9]).buffer};}});
+ await direct.player.start({id:'direct',chapters:[{title:'一',text:'甲乙。丙丁。'}]},0,0,{...voice,provider:'minimax'});
+ assert.equal(directBodies[0].delivery,'url');assert.deepEqual(fetched.map(f=>f.url).sort(),[oss,subs].sort());assert.ok(fetched.every(f=>f.options.headers===undefined&&f.options.redirect==='error'),'no credentials or redirects to provider storage');
+ assert.deepEqual([...direct.files.values()][0],new Uint8Array([7,8,9]));
+ direct.playlists[0].emit({...ns,currentTime:3.2,duration:5});assert.equal(direct.player.snapshot().cursor.start,3);direct.player.stop();
+ const relayBodies=[];
+ const relay=harness(false,false,{bodies:relayBodies,response:(_,index)=>index===0?{headers:{get:()=> 'application/json'},json:async()=>({delivery:'url',url:'https://evil.example/a.mp3'})}:jsonResponse([{text:'甲乙',startTime:0,endTime:2}]),fetch:async()=>{throw new Error('must not fetch foreign hosts');}});
+ await relay.player.start({id:'relay',chapters:[{title:'一',text:'甲乙。'}]},0,0,{...voice,provider:'minimax'});
+ assert.equal(relayBodies[0].delivery,'url');assert.equal(relayBodies[1].delivery,undefined,'fall back to the server relay');assert.deepEqual([...relay.files.values()][0],new Uint8Array([1,2,3]));relay.player.stop();
+ const glmBodies=[];const glm=harness(false,false,{bodies:glmBodies});await glm.player.start({id:'glm',chapters:[{title:'一',text:'甲乙。'}]},0,0,voice);assert.equal(glmBodies[0].delivery,undefined);glm.player.stop();
  console.log('PASS: absent/malformed timestamps fall back to labelled sentence following; native clock, no rewind, rate, pause/buffer, chapter and cancellation guards; real word timing remains preferred.');
  const wav=Buffer.alloc(44+4800*2);wav.write('RIFF');wav.writeUInt32LE(wav.length-8,4);wav.write('WAVEfmt ',8);wav.writeUInt32LE(16,16);wav.writeUInt16LE(1,20);wav.writeUInt16LE(1,22);wav.writeUInt32LE(8000,24);wav.writeUInt32LE(16000,28);wav.writeUInt16LE(2,32);wav.writeUInt16LE(16,34);wav.write('data',36);wav.writeUInt32LE(9600,40);
  for(let i=800;i<4000;i++)wav.writeInt16LE(i%2?8000:-8000,44+i*2);

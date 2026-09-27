@@ -5,13 +5,21 @@ import { Platform } from 'react-native';
 import { request } from './client';
 import {withTtsRetry} from './tts-retry';
 import { type Book } from './books';
-import { narrationGroups } from './pagination';
+import { narrationGroups, CLOUD_GROUP_CHARS, CLOUD_FIRST_GROUP_CHARS } from './pagination';
 import { wavEnvelope, estimatedSpeechOffset, type SpeechEnvelope } from './speech-progress';
 import type { VoiceConfig } from './voices';
 import {AudioCache,type AudioLease} from './audio-cache';
 import {SYNTH_TIMEOUT_MS,MAX_AHEAD_TRACKS,MIN_AHEAD_TRACKS,bufferedTargetSeconds,estimatedAudioSeconds,canStartAhead} from './audio-buffer-policy';
 
 type Position = ReturnType<typeof narrationGroups>[number] & { chapter: number; envelope?: SpeechEnvelope };
+const OSS_HOST=/^minimax-algeng-chat-tts\.oss-cn-[a-z0-9-]+\.aliyuncs\.com$/;
+// MiniMax files live in mainland storage next to most listeners; fetching them
+// directly avoids relaying every clip through the overseas server twice.
+export function providerFileUrl(value:unknown){
+  if(typeof value!=='string'||value.length>4096)return undefined;
+  const match=/^https:\/\/([^/?#@:]+)\//.exec(value);
+  return match&&OSS_HOST.test(match[1])?value:undefined;
+}
 type PlaybackLayout = { startOffset: number; paused?: boolean };
 type State = { active: boolean; paused: boolean; buffering: boolean; chapter: number; position: number; error: string };
 class ReaderPlayer {
@@ -100,7 +108,8 @@ class ReaderPlayer {
     const ensureItems = async (count: number) => {
       while(items.length<count && nextChapter<book.chapters.length && generation===this.generation) {
         const ci=nextChapter++,text=book.chapters[ci].text;
-        for(const segment of narrationGroups(text,ci===chapter?(layout?.startOffset??0):0,ci===chapter?position:0)) {
+        const limit=config.provider==='system'?400:CLOUD_GROUP_CHARS,first=config.provider!=='system'&&ci===chapter?CLOUD_FIRST_GROUP_CHARS:limit;
+        for(const segment of narrationGroups(text,ci===chapter?(layout?.startOffset??0):0,ci===chapter?position:0,limit,first)) {
           items.push({...segment,chapter:ci});
         }
       }
@@ -144,7 +153,21 @@ class ReaderPlayer {
         if(hit){this.leases.push(hit);item.envelope=hit.audio.envelope;return hit;}
         const requestedAt=Date.now();
         const bytes=await withTtsRetry(async requestSignal=>{
-          const response = await request('/api/tts',{method:'POST',body:JSON.stringify({provider:config.provider,model:config.model,voice:config.voice,input:item.text}),signal:requestSignal});
+          const fetchClip=(delivery?:'url')=>request('/api/tts',{method:'POST',body:JSON.stringify({provider:config.provider,model:config.model,voice:config.voice,input:item.text,...(delivery?{delivery}:{})}),signal:requestSignal});
+          const response = await fetchClip(config.provider==='minimax'?'url':undefined);
+          if(response.headers?.get('content-type')?.includes('application/json')){
+            const url=providerFileUrl((await response.json() as {url?:unknown}).url);
+            try{
+              if(!url)throw Error('语音地址无效');
+              const file=await fetch(url,{signal:requestSignal,redirect:'error'});
+              if(!file.ok)throw Error('语音下载失败');
+              return new Uint8Array(await file.arrayBuffer());
+            }catch(error){
+              if(requestSignal.aborted)throw error;
+              // Storage unreachable from this network: fall back to the server relay.
+              return new Uint8Array(await (await fetchClip()).arrayBuffer());
+            }
+          }
           return new Uint8Array(await response.arrayBuffer());
         },signal);
         if(generation!==this.generation)throw new Error('已停止');
