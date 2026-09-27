@@ -149,7 +149,11 @@ export default function ReaderApplication({services=readerServices}:{services?:R
  useEffect(()=>{if(pendingListen.current&&book&&pageEnds.length){pendingListen.current=false;play();}},[book,pageEnds]);
  const listenFrom=(si:number)=>{if(!book||!ranges[si])return;readingProgress.current.move(chapter,si);setPosition(si);void readerPlayer.start(book,chapter,si,prefs.voice,{startOffset:ranges[si].start,paused:false});};
  const openPlayer=()=>{setControlsVisible(false);setPlayerOpen(true);};
- const afterPlayer=(action:()=>void)=>{setPlayerOpen(false);setTimeout(action,380);};
+ const afterPlayerAction=useRef<(()=>void)|null>(null);
+ const runAfterPlayer=()=>{const action=afterPlayerAction.current;afterPlayerAction.current=null;action?.();};
+ // iOS cannot present the panel Modal until the player Modal has finished dismissing.
+ const afterPlayer=(action:()=>void)=>{afterPlayerAction.current=action;setPlayerOpen(false);setTimeout(runAfterPlayer,1200);};
+ const playerChapter=(delta:number)=>{if(!book)return;const ci=chapter+delta;if(ci<0||ci>=book.chapters.length)return;const state=readerPlayer.snapshot();jump(ci,0);if(state.active)void readerPlayer.start(book,ci,0,prefs.voice,{startOffset:0,paused:state.paused});};
  const cycleRate=()=>{const rates=[.75,1,1.25,1.5,1.75,2],i=rates.indexOf(prefs.voice.rate);changeRate(rates[(i+1)%rates.length]);};
  const toggleEink=()=>{const target=colors.eink?readingTheme('paper'):readingTheme('eink');chooseReadingTheme(target);};
  const voiceLabel=prefs.voice.provider==='system'?'本地语音':`${prefs.voice.provider==='glm'?'GLM':'MiniMax'} · ${(prefs.voice.provider==='minimax'&&miniVoices.length?miniVoices:voices(prefs.voice)).find(v=>v.value===prefs.voice.voice)?.label||prefs.voice.voice||'默认'}`;
@@ -234,7 +238,7 @@ export default function ReaderApplication({services=readerServices}:{services?:R
       sentences={playerSentences} position={player.active?position:Math.max(0,ranges.findIndex(r=>r.end>pageStart))}
       rate={prefs.voice.rate} voiceLabel={voiceLabel} player={player} onClose={()=>setPlayerOpen(false)}
       onPlay={()=>{if(player.active)readerPlayer.togglePause();else play();}} onSeek={listenFrom}
-      onPrevChapter={()=>crossChapter(-1)} onNextChapter={()=>crossChapter(1)} onRate={cycleRate}
+      onPrevChapter={()=>playerChapter(-1)} onNextChapter={()=>playerChapter(1)} onRate={cycleRate} onDismiss={runAfterPlayer}
       onVoice={()=>afterPlayer(openSettings)} onToc={()=>afterPlayer(()=>setPanel('toc'))}/>
   </View>}
   <ReaderPanel visible={!!panel} title={panel==='toc'?'目录':panel==='rate'?'朗读语速':panel==='type'?'阅读设置':'听书与更多设置'} colors={colors} width={width} wide={layout.widePanel} panelWidth={layout.panelWidth} onClose={closePanel}>

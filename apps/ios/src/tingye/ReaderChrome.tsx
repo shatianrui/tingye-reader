@@ -123,7 +123,7 @@ export function PlayerSheet(p: {
   visible: boolean; colors: ReadingTheme; title: string; author?: string; chapterTitle?: string;
   sentences: string[]; position: number; rate: number; voiceLabel: string; player: PlayerState;
   onClose: () => void; onPlay: () => void; onSeek: (sentence: number) => void; onPrevChapter: () => void; onNextChapter: () => void;
-  onRate: () => void; onVoice: () => void; onToc: () => void;
+  onRate: () => void; onVoice: () => void; onToc: () => void; onDismiss?: () => void;
 }) {
   const { colors } = p;
   const eink = colors.eink === true;
@@ -146,7 +146,7 @@ export function PlayerSheet(p: {
     </Pressable>
   );
   return (
-    <Modal visible={p.visible} animationType="slide" presentationStyle="fullScreen" onRequestClose={p.onClose}
+    <Modal visible={p.visible} animationType="slide" presentationStyle="fullScreen" onRequestClose={p.onClose} onDismiss={p.onDismiss}
       supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}>
       <SafeAreaProvider>
         <View style={{ flex: 1, backgroundColor: eink ? colors.background : '#1C3E33' }}>
