@@ -1,6 +1,8 @@
 import {ReaderPanel} from './ReaderPanel';
 import appConfig from '../../app.json';
-import {ReaderButton,ReaderTool,ReaderErrorBanner} from './ReaderControls';
+import {ReaderButton,ReaderErrorBanner} from './ReaderControls';
+import {ReaderTopBar,ReaderBottomPanel,ListenFab,PlayerSheet,SettingsCard} from './ReaderChrome';
+import Icon from '../components/Icon';
 import {styles} from './reader-styles';
 import { DisplayText as Text } from '../components/DisplayText';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -45,7 +47,7 @@ export default function ReaderApplication({services=readerServices}:{services?:R
  const insets=useSafeAreaInsets(),width=windowWidth-insets.left-insets.right;
  const [identity,setIdentity]=useState<Session['user']|null>(null),[initializing,setInitializing]=useState(true),[busy,setBusy]=useState(false),[notice,setNotice]=useState('');
  const [books,setBooks]=useState<Book[]>(samples),[book,setBook]=useState<Book|null>(null),[savedChapter,setChapter]=useState(0),[savedPosition,setPosition]=useState(0);
- const [prefs,setPrefs]=useState(initial),[panel,setPanel]=useState<'settings'|'toc'|'rate'|null>(null),[voiceList,setVoiceList]=useState<Speech.Voice[]>([]),[miniVoices,setMiniVoices]=useState<VoiceOption[]>([]),[voicesBusy,setVoicesBusy]=useState(false),[voiceNotice,setVoiceNotice]=useState('');
+ const [prefs,setPrefs]=useState(initial),[panel,setPanel]=useState<'settings'|'type'|'toc'|'rate'|null>(null),[playerOpen,setPlayerOpen]=useState(false),[voiceList,setVoiceList]=useState<Speech.Voice[]>([]),[miniVoices,setMiniVoices]=useState<VoiceOption[]>([]),[voicesBusy,setVoicesBusy]=useState(false),[voiceNotice,setVoiceNotice]=useState('');
  const [pageStart,setPageStart]=useState(0),[pageEnds,setPageEnds]=useState<number[]>([]),[pageHeight,setPageHeight]=useState(0),[pageWidth,setPageWidth]=useState(0);
  const [controlsVisible,setControlsVisible]=useState(false);
  const [repairRevision,setRepairRevision]=useState(0);
@@ -67,9 +69,10 @@ export default function ReaderApplication({services=readerServices}:{services?:R
  const metrics=useReadingMetrics(identity?.userId,!!book);
  const presentedBooks=useMemo(()=>presentLibrary(books),[books]);
  const loadLibraryBook=useCallback(async(id:string)=>{const shelf=library.current;if(!shelf)throw Error('请先登录');return shelf.open(id);},[]);
- const returnToShelf=()=>{readerPlayer.stop();save();readingProgress.current.clear();setBook(null);void progressQueue.current.then(reload);};
+ const returnToShelf=()=>{readerPlayer.stop();setPlayerOpen(false);save();readingProgress.current.clear();setBook(null);void progressQueue.current.then(reload);};
  const currentChapter=book?.chapters[chapter];
  const ranges=useMemo(()=>sentenceRanges(currentChapter?.text||''),[currentChapter]);
+ const playerSentences=useMemo(()=>ranges.map(r=>(currentChapter?.text||'').slice(r.start,r.end).trim()),[ranges,currentChapter]);
  const reload=useCallback(async()=>{const shelf=library.current;if(!shelf)return;setBooks(await shelf.list());const result=await shelf.list(true);if(library.current===shelf)setBooks(result);},[]);
  const save=useCallback(()=>{
    const shelf=library.current;if(!shelf)return;
@@ -101,7 +104,7 @@ export default function ReaderApplication({services=readerServices}:{services?:R
  const readerConfig=useMemo(()=>({fontSize:prefs.fontSize,typography:prefs.typography,colors,original:prefs.originalLayout,spread:layout.spread,eink:colors.eink===true}),[prefs.fontSize,prefs.typography,colors,prefs.originalLayout,layout.spread]);
  const paginationReady=useCallback((next:ReaderPage)=>{setReaderPage(next);setPageStart(next.anchor??next.start);setPageEnds([next.end]);if(next.manual)readerPlayer.stop();if(next.manual){const si=Math.max(0,ranges.findIndex(r=>r.end>(next.anchor??next.start)));readingProgress.current.move(chapter,si);setPosition(si);}},[ranges,chapter]);
  const signedIn=(next:Session)=>{readerPlayer.clearCache();setBook(null);library.current=services.library(next.user.userId);setIdentity(next.user);setNotice('');setBooks(samples);void reload().catch(e=>setNotice(errorText(e)));};
- const openBook=async(item:Book,initialChapter?:number)=>{const shelf=library.current;if(busy||!shelf)return;readerPlayer.stop();save();await progressQueue.current;setBusy(true);setNotice('');try{const b=await shelf.open(item.id);if(library.current!==shelf)return;const ci=Math.max(0,Math.min(initialChapter??b.chapter??0,b.chapters.length-1)),si=initialChapter===undefined?(b.position||0):0;readingProgress.current.restore(b,b.chapter||0,b.position||0);if(initialChapter!==undefined)readingProgress.current.move(ci,si);setBook(b);setControlsVisible(false);setChapter(ci);setPosition(si);}catch(e){setNotice(errorText(e));}finally{setBusy(false);}};
+ const openBook=async(item:Book,initialChapter?:number)=>{const shelf=library.current;if(busy||!shelf){pendingListen.current=false;return;}readerPlayer.stop();save();await progressQueue.current;setBusy(true);setNotice('');try{const b=await shelf.open(item.id);if(library.current!==shelf)return;const ci=Math.max(0,Math.min(initialChapter??b.chapter??0,b.chapters.length-1)),si=initialChapter===undefined?(b.position||0):0;readingProgress.current.restore(b,b.chapter||0,b.position||0);if(initialChapter!==undefined)readingProgress.current.move(ci,si);setBook(b);setControlsVisible(false);setChapter(ci);setPosition(si);}catch(e){pendingListen.current=false;setNotice(errorText(e));}finally{setBusy(false);}};
  const importBooks=async()=>{if(busy||!library.current)return;const selection=await DocumentPicker.getDocumentAsync({type:'*/*',multiple:true,copyToCacheDirectory:true});if(selection.canceled)return;setBusy(true);setNotice('');const failures:string[]=[];let imported=0;for(const asset of selection.assets){try{const b=await parseBook(asset.uri,asset.name);await library.current.importBook(b);imported++;}catch(e){failures.push(`${asset.name}：${errorText(e)}`);}}setBooks(await library.current.list());setNotice([imported?`已保存 ${imported} 本到手机。点击“同步”→“上传本机备份”，再在其他设备选择“从云端还原”。`:'',...failures].filter(Boolean).join('\n'));setBusy(false);};
  const runBackup=async(mode:'upload'|'download')=>{
   const shelf=library.current;if(busy||!shelf)return;setBusy(true);setNotice('正在核对云端账号与书架…');
@@ -142,22 +145,32 @@ export default function ReaderApplication({services=readerServices}:{services?:R
  const crossChapter=(delta:number)=>{readerPlayer.stop();if(book&&chapter+delta>=0&&chapter+delta<book.chapters.length)jump(chapter+delta,delta<0?Math.max(0,sentences(book.chapters[chapter+delta].text).length-1):0);};
  const turn=(delta:number)=>{readerPlayer.stop();originalReader.current?.turn(delta);};
  const play=()=>{if(!book||!pageEnds.length)return;setControlsVisible(false);if(player.active)readerPlayer.togglePause();else{const si=ranges.findIndex(r=>r.end>pageStart);setPosition(Math.max(0,si));void readerPlayer.start(book,chapter,Math.max(0,si),prefs.voice,{startOffset:pageStart});}};
+ const pendingListen=useRef(false);
+ useEffect(()=>{if(pendingListen.current&&book&&pageEnds.length){pendingListen.current=false;play();}},[book,pageEnds]);
+ const listenFrom=(si:number)=>{if(!book||!ranges[si])return;readingProgress.current.move(chapter,si);setPosition(si);void readerPlayer.start(book,chapter,si,prefs.voice,{startOffset:ranges[si].start,paused:false});};
+ const openPlayer=()=>{setControlsVisible(false);setPlayerOpen(true);};
+ const afterPlayer=(action:()=>void)=>{setPlayerOpen(false);setTimeout(action,380);};
+ const cycleRate=()=>{const rates=[.75,1,1.25,1.5,1.75,2],i=rates.indexOf(prefs.voice.rate);changeRate(rates[(i+1)%rates.length]);};
+ const toggleEink=()=>{const target=colors.eink?readingTheme('paper'):readingTheme('eink');chooseReadingTheme(target);};
+ const voiceLabel=prefs.voice.provider==='system'?'本地语音':`${prefs.voice.provider==='glm'?'GLM':'MiniMax'} · ${(prefs.voice.provider==='minimax'&&miniVoices.length?miniVoices:voices(prefs.voice)).find(v=>v.value===prefs.voice.voice)?.label||prefs.voice.voice||'默认'}`;
  const followBookLink=(href:string)=>{if(!book)return;const target=resourcePath(currentChapter?.document?.path||'',href);const ci=book.chapters.findIndex(c=>c.document?.path===target);if(ci>=0)jump(ci);};
  const openSettings=()=>{setDraftVoice({...prefs.voice});setVoiceNotice('');setPanel('settings');};
  const chooseReadingTheme=(theme:ReadingTheme)=>setPrefs(p=>theme.eink?{...p,theme:theme.id,originalLayout:false,spreadMode:'single',fontSize:22,typography:{...defaultTypography,font:'serif',lineHeight:1.7,paragraphGap:.3,margin:32,indent:true,alignment:'justify'}}:{...p,theme:theme.id});
  const changeVoice=(voice:VoiceConfig)=>setDraftVoice(voice);
  const changeRate=(rate:number)=>{readerPlayer.setRate(rate);setPrefs(p=>({...p,voice:{...p.voice,rate}}));setDraftVoice(v=>({...v,rate}));};
- const closePanel=()=>{
-   if(panel==='settings'){
+ const applyDraftVoice=()=>{
      const voice={...draftVoice,model:draftVoice.model.trim(),voice:draftVoice.voice.trim()};
-     if(voice.provider!=='system'&&(!voice.model||!voice.voice)){Alert.alert('请补全语音设置','模型和音色不能为空。');return;}
+     if(voice.provider!=='system'&&(!voice.model||!voice.voice)){Alert.alert('请补全语音设置','模型和音色不能为空。');return false;}
      const changed=voiceSourceChanged(prefs.voice,voice),state=readerPlayer.snapshot(),current=latest.current;
      setPrefs(p=>({...p,voice}));
      if(changed&&state.active&&current.book){
        const start=sentenceRanges(current.book.chapters[state.chapter].text)[state.position]?.start??0;
        void readerPlayer.start(current.book,state.chapter,state.position,voice,{startOffset:start,paused:state.paused});
      }
-   }
+     return true;
+ };
+ const closePanel=()=>{
+   if(panel==='settings'&&!applyDraftVoice())return;
    setPanel(null);
  };
  const chooseProvider=(provider:VoiceConfig['provider'])=>{const model=provider==='glm'?'glm-tts':provider==='minimax'?'speech-2.8-hd':'';const next={provider,model,voice:'',rate:draftVoice.rate};next.voice=voices(next)[0]?.value||'';changeVoice(next);setVoiceNotice('');};
@@ -185,7 +198,7 @@ export default function ReaderApplication({services=readerServices}:{services?:R
   </View>}
   {!!notice&&(!!book||!identity)&&<Pressable onPress={()=>setNotice('')}><Text selectable style={[styles.notice,{color:colors.text,backgroundColor:colors.highlight}]}>{notice}</Text></Pressable>}
   {!identity?<AccountScreen colors={colors} onSignedIn={signedIn}/>:<View style={{flex:1,display:book?'none':'flex'}}><LibraryUIContext.Provider value={{books:presentedBooks,nativeBooks:books,username:identity.username,busy,notice,...metrics,
-      load:loadLibraryBook,open:async(id,initialChapter)=>{const item=books.find(b=>b.id===id);if(item)await openBook(item,initialChapter);},
+      load:loadLibraryBook,open:async(id,initialChapter,listen)=>{const item=books.find(b=>b.id===id);if(!item)return;pendingListen.current=!!listen;await openBook(item,initialChapter);},
       importBooks:()=>{void importBooks().catch(e=>setNotice(errorText(e)));},
       refresh:()=>{void synchronize();},
       actions:id=>{const item=books.find(b=>b.id===id);if(item&&!item.sample)bookActions(item);},
@@ -193,7 +206,7 @@ export default function ReaderApplication({services=readerServices}:{services?:R
   {identity&&book&&<View style={[styles.reader,{backgroundColor:colors.surface}]} testID="immersive-reader">
     <View style={[styles.readingHeading,{height:layout.desktop?52:layout.compactHeight?24:34,width:layout.contentWidth,alignSelf:'center',paddingHorizontal:0,flexDirection:'row',alignItems:'center',gap:8}]}>
       {layout.desktop&&<ReaderButton colors={colors} label="书架" onPress={returnToShelf}/>}
-      <Text numberOfLines={1} style={{flex:1,fontSize:14,color:colors.accent,fontWeight:'600'}}>{currentChapter?.title}</Text>
+      <Text numberOfLines={1} style={{flex:1,fontSize:13,color:colors.muted,fontWeight:'600',fontFamily:'Songti SC',letterSpacing:.5}}>{currentChapter?.title}</Text>
       {layout.desktop&&<><ReaderButton colors={colors} label="目录" onPress={()=>setPanel('toc')}/><ReaderButton colors={colors} label="阅读设置" onPress={openSettings}/></>}
     </View>
     {needsOriginalRepair(book)&&<Pressable accessibilityRole="button" onPress={()=>{void repairBook(book);}} style={{paddingHorizontal:18,paddingVertical:8,backgroundColor:colors.highlight}}><Text style={{color:colors.text,fontSize:13}}>这是旧版纯文字副本 · 点此重新导入原书图片、排版与封面</Text></Pressable>}
@@ -206,36 +219,53 @@ export default function ReaderApplication({services=readerServices}:{services?:R
     <View style={[styles.readingFooter,{height:layout.compactHeight?48:60,paddingHorizontal:layout.gutter,width:layout.contentWidth+2*layout.gutter,alignSelf:'center'}]}>
       <Pressable accessibilityRole="button" accessibilityLabel={controlsVisible?'隐藏功能栏':'显示功能栏'} onPress={toggleControls} style={styles.readingProgress}><Text style={{fontSize:11,color:colors.muted}}>第 {chapter+1} / {book.chapters.length} 章 · {pageIndex+1} / {readerPage.count} 页</Text><Text numberOfLines={1} style={{fontSize:10,color:colors.muted,marginTop:4}}>{player.active?(player.timingNotice?'整句高亮 · 进度估算':'整句高亮 · 朗读同步'):layout.desktop?'正文内：← → / PgUp PgDn 翻页 · 空格 听/停 · M 菜单 · Esc 隐藏':'轻点正文显隐菜单 · 左右滑动翻页'}</Text></Pressable>
       {layout.desktop&&<View style={{flexDirection:'row',gap:8,marginRight:12}}><ReaderButton colors={colors} label="上一页" onPress={()=>turn(-1)}/><ReaderButton colors={colors} label="下一页" onPress={()=>turn(1)}/></View>}
-      {!controlsVisible&&<Pressable accessibilityRole="button" accessibilityLabel={player.active&&!player.paused?'暂停朗读':'开始朗读'} onPress={play} style={[styles.listenBubble,{backgroundColor:colors.accent}]}>{player.buffering&&!player.paused?<ActivityIndicator color={colors.onAccent}/>:<Text style={{color:colors.onAccent,fontSize:21,fontWeight:'500'}}>{player.active&&!player.paused?'Ⅱ':'听'}</Text>}</Pressable>}
+      {!controlsVisible&&<ListenFab colors={colors} player={player} onPress={play} onLongPress={openPlayer}/>}
     </View>
     {controlsVisible&&<>
-      <View testID="reader-top-toolbar" style={[styles.readerTopToolbar,{left:(width-layout.controlsWidth)/2,right:(width-layout.controlsWidth)/2,backgroundColor:colors.background,borderBottomColor:colors.line}]}>
-        <Pressable accessibilityRole="button" accessibilityLabel="返回书架" onPress={()=>{returnToShelf();}} style={styles.iconButton}><Text style={{fontSize:32,color:colors.text}}>‹</Text></Pressable>
-        <Text numberOfLines={1} style={{flex:1,fontSize:16,fontWeight:'600',color:colors.text}}>{book.title}</Text>
-        <Pressable accessibilityRole="button" accessibilityLabel="设置" onPress={openSettings} style={styles.iconButton}><Text style={{fontSize:25,color:colors.text}}>⋯</Text></Pressable>
-      </View>
-      <View testID="reader-bottom-toolbar" style={[styles.readerBottomToolbar,{left:(width-layout.controlsWidth)/2,right:(width-layout.controlsWidth)/2,paddingHorizontal:width<360?10:22,backgroundColor:colors.background,borderTopColor:colors.line}]}>
-        <View style={styles.readerPageNavigation}><Pressable accessibilityRole="button" accessibilityLabel="上一页" onPress={()=>turn(-1)} style={styles.iconButton}><Text style={{color:colors.text}}>‹ 上一页</Text></Pressable><Text style={{fontSize:12,color:colors.muted}}>{pageIndex+1} / {readerPage.count}</Text><Pressable accessibilityRole="button" accessibilityLabel="下一页" onPress={()=>turn(1)} style={styles.iconButton}><Text style={{color:colors.text}}>下一页 ›</Text></Pressable></View>
-        <View style={styles.readerTools}>
-          <ReaderTool colors={colors} symbol="☰" label="目录" onPress={()=>setPanel('toc')}/>
-          <ReaderTool colors={colors} symbol={colors.dark?'☼':'☾'} label={colors.dark?'日间':'夜间'} onPress={()=>setPrefs(p=>({...p,theme:colors.dark?'paper':'ink'}))}/>
-          <Pressable accessibilityRole="button" accessibilityLabel={player.active&&!player.paused?'暂停朗读':'开始朗读'} onPress={play} style={[styles.listenBubble,{backgroundColor:colors.accent}]}>{player.buffering&&!player.paused?<ActivityIndicator color={colors.onAccent}/>:<Text style={{color:colors.onAccent,fontSize:21}}>{player.active&&!player.paused?'Ⅱ':'听'}</Text>}</Pressable>
-          <ReaderTool colors={colors} symbol="Aa" label="字体 / 排版" onPress={openSettings}/>
-          <ReaderTool colors={colors} symbol={prefs.voice.rate+"×"} label="语速" onPress={()=>{setDraftVoice({...prefs.voice});setPanel('rate');}}/>
-        </View>
-      </View>
+      <ReaderTopBar colors={colors} title={book.title} subtitle={currentChapter?.title} left={(width-layout.controlsWidth)/2} right={(width-layout.controlsWidth)/2} onBack={returnToShelf} onListen={openPlayer} onMore={openSettings}/>
+      <ReaderBottomPanel colors={colors} left={(width-layout.controlsWidth)/2} right={(width-layout.controlsWidth)/2} compact={width<360}
+        chapter={chapter} chapterCount={book.chapters.length} pageIndex={pageIndex} pageCount={readerPage.count} rate={prefs.voice.rate} player={player}
+        onPrevChapter={()=>crossChapter(-1)} onNextChapter={()=>crossChapter(1)} onPrevPage={()=>turn(-1)} onNextPage={()=>turn(1)}
+        onPlay={play} onOpenPlayer={openPlayer} onRate={()=>{setDraftVoice({...prefs.voice});setPanel('rate');}}
+        onToc={()=>setPanel('toc')} onNight={()=>setPrefs(p=>({...p,theme:colors.dark?'paper':'ink'}))} onType={()=>setPanel('type')} onEink={toggleEink} onMore={openSettings}/>
     </>}
-    {!!player.error&&<ReaderErrorBanner colors={colors} message={player.error} bottom={controlsVisible?120:66} onOpenSettings={openSettings} onRetry={()=>{void play();}}/>}
+    {!!player.error&&<ReaderErrorBanner colors={colors} message={player.error} bottom={controlsVisible?300:66} onOpenSettings={openSettings} onRetry={()=>{void play();}}/>}
+    <PlayerSheet visible={playerOpen} colors={colors} title={book.title} author={book.author} chapterTitle={currentChapter?.title}
+      sentences={playerSentences} position={player.active?position:Math.max(0,ranges.findIndex(r=>r.end>pageStart))}
+      rate={prefs.voice.rate} voiceLabel={voiceLabel} player={player} onClose={()=>setPlayerOpen(false)}
+      onPlay={()=>{if(player.active)readerPlayer.togglePause();else play();}} onSeek={listenFrom}
+      onPrevChapter={()=>crossChapter(-1)} onNextChapter={()=>crossChapter(1)} onRate={cycleRate}
+      onVoice={()=>afterPlayer(openSettings)} onToc={()=>afterPlayer(()=>setPanel('toc'))}/>
   </View>}
-  <ReaderPanel visible={!!panel} title={panel==='toc'?'目录':panel==='rate'?'朗读语速':'阅读与听书设置'} colors={colors} width={width} wide={layout.widePanel} panelWidth={layout.panelWidth} onClose={closePanel}>
-    {panel==='rate'?<ScrollView contentContainerStyle={{padding:24,gap:20}}><Text style={{color:colors.text,fontSize:18}}>当前语速 {prefs.voice.rate}×</Text><View style={styles.chips}>{[.5,.75,1,1.25,1.5,1.75,2].map(rate=><ReaderButton colors={colors} key={rate} label={rate+'×'} primary={prefs.voice.rate===rate} onPress={()=>changeRate(rate)}/>)}</View><Text style={{color:colors.muted}}>调整后立即应用；本地语音从当前词语继续朗读。</Text></ScrollView>:panel==='toc'?<FlatList data={book?.chapters} keyExtractor={(_,i)=>String(i)} renderItem={({item,index})=><Pressable accessibilityRole="button" onPress={()=>jump(index)} style={[styles.tocRow,{borderBottomColor:colors.line,backgroundColor:chapter===index?colors.highlight:undefined}]}><Text style={{color:colors.text,fontSize:17}}>{index+1}　{item.title}</Text></Pressable>}/>:<ScrollView contentContainerStyle={{padding:24,gap:20}} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" automaticallyAdjustKeyboardInsets>
-     {player.active&&<View style={[styles.settingsPlayback,{borderColor:colors.line,backgroundColor:colors.surface}]}><View style={{flex:1}}><Text style={{color:colors.text,fontWeight:'600'}}>{player.paused?'已暂停':player.buffering?'正在准备声音…':'听书继续播放中'}</Text><Text style={{color:colors.muted,fontSize:12,marginTop:6}}>调整字号和背景不会中断声音</Text></View><ReaderButton colors={colors} label={player.paused?'继续':'暂停'} onPress={()=>readerPlayer.togglePause()}/></View>}
-     <Text style={[styles.label,{color:colors.muted}]}>书籍排版</Text><View style={styles.chips}><ReaderButton colors={colors} label="原书图文" primary={prefs.originalLayout} onPress={()=>setPrefs(p=>({...p,originalLayout:true}))}/><ReaderButton colors={colors} label="自定义阅读" primary={!prefs.originalLayout} onPress={()=>setPrefs(p=>({...p,originalLayout:false}))}/></View><Text style={{color:colors.muted,fontSize:13}}>原书图文保留 EPUB 样式、图片和表格。切换自定义阅读可应用下方字体、行距；PDF 保留原始页面，可双指缩放。</Text>
-     <Text style={[styles.label,{color:colors.muted}]}>展开阅读</Text><View style={styles.chips}><ReaderButton colors={colors} label="自动双页" primary={prefs.spreadMode!=='single'} onPress={()=>setPrefs(p=>({...p,spreadMode:'auto'}))}/><ReaderButton colors={colors} label="始终单页" primary={prefs.spreadMode==='single'} onPress={()=>setPrefs(p=>({...p,spreadMode:'single'}))}/></View><Text style={{color:colors.muted,fontSize:13}}>宽屏自动并排显示两页，合屏回到单页并保留当前阅读位置。PDF 和固定版式 EPUB 保留原页。</Text>
-     <Text style={[styles.label,{color:colors.muted}]}>字号</Text><View style={styles.chips}><ReaderButton colors={colors} label="A−" onPress={()=>setPrefs(p=>({...p,originalLayout:false,fontSize:Math.max(16,p.fontSize-2)}))}/><Text style={{alignSelf:'center',color:colors.text,minWidth:32,textAlign:'center'}}>{prefs.fontSize}</Text><ReaderButton colors={colors} label="A＋" onPress={()=>setPrefs(p=>({...p,originalLayout:false,fontSize:Math.min(30,p.fontSize+2)}))}/></View>
+  <ReaderPanel visible={!!panel} title={panel==='toc'?'目录':panel==='rate'?'朗读语速':panel==='type'?'阅读设置':'听书与更多设置'} colors={colors} width={width} wide={layout.widePanel} panelWidth={layout.panelWidth} onClose={closePanel}>
+    {panel==='rate'?<ScrollView contentContainerStyle={{padding:24,gap:20}}><Text style={{color:colors.text,fontSize:18}}>当前语速 {prefs.voice.rate}×</Text><View style={styles.chips}>{[.5,.75,1,1.25,1.5,1.75,2].map(rate=><ReaderButton colors={colors} key={rate} label={rate+'×'} primary={prefs.voice.rate===rate} onPress={()=>changeRate(rate)}/>)}</View><Text style={{color:colors.muted}}>调整后立即应用；本地语音从当前词语继续朗读。</Text></ScrollView>:panel==='toc'?<FlatList data={book?.chapters} keyExtractor={(_,i)=>String(i)} renderItem={({item,index})=><Pressable accessibilityRole="button" onPress={()=>jump(index)} style={[styles.tocRow,{borderBottomColor:colors.line,backgroundColor:chapter===index?colors.highlight:undefined,flexDirection:'row',alignItems:'center',gap:12}]}><Text style={{color:chapter===index?colors.accent:colors.muted,fontSize:13,minWidth:28}}>{index+1}</Text><Text numberOfLines={2} style={{flex:1,color:colors.text,fontSize:16,fontFamily:'Songti SC',fontWeight:chapter===index?'700':'400'}}>{item.title}</Text>{chapter===index&&<Icon name="headphones" size={16} color={colors.accent}/>}</Pressable>}/>:panel==='type'?<ScrollView contentContainerStyle={{padding:20,gap:16}}>
+     <SettingsCard colors={colors}>
+      <View style={{flexDirection:'row',alignItems:'center',justifyContent:'space-between'}}><Text style={[styles.label,{color:colors.text}]}>字号</Text><Text style={{color:colors.muted,fontSize:13}}>{prefs.fontSize}</Text></View>
+      <View style={{flexDirection:'row',alignItems:'center',gap:12}}>
+       <Pressable accessibilityRole="button" accessibilityLabel="减小字号" onPress={()=>setPrefs(p=>({...p,originalLayout:false,fontSize:Math.max(16,p.fontSize-2)}))} style={[styles.fontStep,{borderColor:colors.eink?colors.text:colors.line,borderRadius:colors.eink?4:18}]}><Text style={{color:colors.text,fontSize:14,fontFamily:'Songti SC'}}>A</Text></Pressable>
+       <View style={{flex:1,height:4,borderRadius:2,backgroundColor:colors.line}}><View style={{width:`${Math.round((prefs.fontSize-16)/14*100)}%`,height:'100%',borderRadius:2,backgroundColor:colors.eink?colors.text:colors.accent}}/></View>
+       <Pressable accessibilityRole="button" accessibilityLabel="增大字号" onPress={()=>setPrefs(p=>({...p,originalLayout:false,fontSize:Math.min(30,p.fontSize+2)}))} style={[styles.fontStep,{borderColor:colors.eink?colors.text:colors.line,borderRadius:colors.eink?4:18}]}><Text style={{color:colors.text,fontSize:22,fontFamily:'Songti SC'}}>A</Text></Pressable>
+      </View>
+     </SettingsCard>
+     <SettingsCard colors={colors}>
+      <Text style={[styles.label,{color:colors.text}]}>阅读背景</Text>
+      <View style={{flexDirection:'row',flexWrap:'wrap',gap:14}}>{readingThemes.map(theme=><Pressable key={theme.id} accessibilityRole="button" accessibilityLabel={theme.name} accessibilityState={{selected:prefs.theme===theme.id}} onPress={()=>chooseReadingTheme(theme)} style={{alignItems:'center',gap:6,width:52}}>
+       <View style={[styles.swatch,{backgroundColor:theme.surface,borderColor:prefs.theme===theme.id?(colors.eink?colors.text:colors.accent):theme.line,borderWidth:prefs.theme===theme.id?2.5:1,borderRadius:theme.eink?8:22}]}>{prefs.theme===theme.id?<Icon name="check" size={18} color={theme.text} strokeWidth={2.4}/>:<Text style={{color:theme.text,fontSize:15,fontFamily:'Songti SC'}}>文</Text>}</View>
+       <Text numberOfLines={1} style={{fontSize:11,color:prefs.theme===theme.id?colors.text:colors.muted}}>{theme.name}</Text></Pressable>)}</View>
+     </SettingsCard>
+     <Pressable accessibilityRole="switch" accessibilityState={{checked:!!colors.eink}} onPress={toggleEink} style={[styles.einkCard,{backgroundColor:colors.eink?colors.surface:colors.highlight+'55',borderColor:colors.eink?colors.text:colors.line,borderWidth:colors.eink?1.5:StyleSheet.hairlineWidth,borderRadius:colors.eink?4:20}]}>
+      <View style={[styles.einkIcon,{borderColor:colors.text,borderRadius:colors.eink?4:14}]}><Icon name="eink" size={24} color={colors.text}/></View>
+      <View style={{flex:1}}><Text style={{color:colors.text,fontSize:16,fontWeight:'700',fontFamily:'Songti SC'}}>电纸书模式</Text><Text style={{color:colors.muted,fontSize:12,lineHeight:18,marginTop:4}}>高对比灰阶 · 衬线字体 · 单页留白 · 无动画，接近 Kindle 电子墨水屏。</Text></View>
+      <View style={[styles.toggle,{backgroundColor:colors.eink?colors.text:colors.line,borderRadius:colors.eink?4:14}]}><View style={[styles.toggleKnob,{backgroundColor:colors.surface,alignSelf:colors.eink?'flex-end':'flex-start',borderRadius:colors.eink?2:11}]}/></View>
+     </Pressable>
+     <SettingsCard colors={colors}>
+      <Text style={[styles.label,{color:colors.text}]}>书籍排版</Text><View style={styles.chips}><ReaderButton colors={colors} label="原书图文" primary={prefs.originalLayout} onPress={()=>setPrefs(p=>({...p,originalLayout:true}))}/><ReaderButton colors={colors} label="自定义阅读" primary={!prefs.originalLayout} onPress={()=>setPrefs(p=>({...p,originalLayout:false}))}/></View><Text style={{color:colors.muted,fontSize:12,lineHeight:18}}>原书图文保留 EPUB 样式、图片和表格；自定义阅读应用下方字体、行距。PDF 保留原始页面，可双指缩放。</Text>
+      <Text style={[styles.label,{color:colors.text}]}>展开阅读</Text><View style={styles.chips}><ReaderButton colors={colors} label="自动双页" primary={prefs.spreadMode!=='single'} onPress={()=>setPrefs(p=>({...p,spreadMode:'auto'}))}/><ReaderButton colors={colors} label="始终单页" primary={prefs.spreadMode==='single'} onPress={()=>setPrefs(p=>({...p,spreadMode:'single'}))}/></View>
+     </SettingsCard>
      <ReadingTypographySettings value={prefs.typography} onChange={typography=>setPrefs(p=>({...p,typography,originalLayout:false}))} colors={colors} fontSize={prefs.fontSize} fontsReady={!!fontsReady}/>
-     <Text style={[styles.label,{color:colors.muted}]}>阅读背景 / 模式</Text><View style={styles.chips}>{readingThemes.map(theme=><Pressable key={theme.id} accessibilityRole="button" accessibilityLabel={theme.name} accessibilityState={{selected:prefs.theme===theme.id}} onPress={()=>chooseReadingTheme(theme)} style={[styles.themeCard,{backgroundColor:theme.surface,borderColor:prefs.theme===theme.id?colors.accent:colors.line,borderWidth:prefs.theme===theme.id?2:1}]}><Text style={{fontSize:23,color:theme.text}}>文</Text><Text style={{fontSize:13,color:theme.text,marginTop:8,alignSelf:'stretch',textAlign:'center',marginHorizontal:4}}>{theme.name}{prefs.theme===theme.id?' ✓':''}</Text></Pressable>)}</View>
-     <Text style={{color:colors.muted,fontSize:13,lineHeight:21}}>电纸书模式使用高对比灰阶页面、衬线字体、单页宽留白，并将原书彩色背景、阴影和图片转换为接近 Kindle 的电子墨水显示效果。</Text>
+    </ScrollView>:<ScrollView contentContainerStyle={{padding:24,gap:20}} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" automaticallyAdjustKeyboardInsets>
+     {player.active&&<View style={[styles.settingsPlayback,{borderColor:colors.line,backgroundColor:colors.surface}]}><View style={{flex:1}}><Text style={{color:colors.text,fontWeight:'600'}}>{player.paused?'已暂停':player.buffering?'正在准备声音…':'听书继续播放中'}</Text><Text style={{color:colors.muted,fontSize:12,marginTop:6}}>调整字号和背景不会中断声音</Text></View><ReaderButton colors={colors} label={player.paused?'继续':'暂停'} onPress={()=>readerPlayer.togglePause()}/></View>}
+     <Pressable accessibilityRole="button" onPress={()=>{if(applyDraftVoice())setPanel('type');}} style={[styles.settingsPlayback,{borderColor:colors.eink?colors.text:colors.line,borderWidth:colors.eink?1.5:1,backgroundColor:colors.surface}]}><Icon name="type" size={22} color={colors.text}/><View style={{flex:1}}><Text style={{color:colors.text,fontWeight:'600'}}>阅读外观与排版</Text><Text style={{color:colors.muted,fontSize:12,marginTop:4}}>字号 · 背景 · 电纸书模式 · 字体行距</Text></View><Icon name="chev" size={18} color={colors.muted}/></Pressable>
      <Text style={[styles.label,{color:colors.muted}]}>语速</Text><View style={styles.chips}>{[.5,.75,1,1.25,1.5,1.75,2].map(rate=><ReaderButton colors={colors} key={rate} label={rate+'×'} primary={prefs.voice.rate===rate} onPress={()=>changeRate(rate)}/>)}</View>
      <Text style={{color:colors.muted,lineHeight:22,fontSize:13}}>{prefs.voice.provider==='system'?'本地语音立即应用新语速，从当前词语继续。':'语速立即生效，保留当前播放位置。1× 更接近音色原本的节奏。'}</Text>
      {player.active&&!!player.timingNotice&&<Text style={{color:colors.muted,lineHeight:22}}>{player.timingNotice} 高亮始终显示整句，翻页跟随句内朗读位置。GLM 时间戳在后台分析，不等待识别即可播放；未取得时间戳时使用估算进度。</Text>}

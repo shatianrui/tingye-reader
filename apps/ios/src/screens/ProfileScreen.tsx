@@ -4,18 +4,20 @@ import appConfig from '../../app.json';
 import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {useLibraryUI} from '../tingye/library-ui';
-import MaterialAppBar from '../components/MaterialAppBar';
+import ScreenHeader from '../components/ScreenHeader';
+import Icon, { type IconName } from '../components/Icon';
+import Gradient from '../components/Gradient';
+import { FLOATING_TAB_BAR_SPACE } from '../components/MaterialNavBar';
 import ThemeSwitcher from '../components/ThemeSwitcher';
 import ReadingChart, { type ReadingChartRange } from '../components/ReadingChart';
 import { useAppTheme } from '../theme/useAppTheme';
-import { spacing as spacingTokens, shape as shapeTokens } from '../theme/tokens';
+import { spacing as spacingTokens, shape as shapeTokens, brand } from '../theme/tokens';
 
 function StatItem({ label, value }: { label: string; value: string }) {
-  const theme = useAppTheme();
   return (
     <View style={styles.statItem}>
-      <Text style={[styles.statValue, { color: theme.colors.onSurface }]}>{value}</Text>
-      <Text style={[styles.statLabel, { color: theme.colors.onSurfaceVariant }]}>{label}</Text>
+      <Text numberOfLines={1} adjustsFontSizeToFit style={styles.statValue}>{value}</Text>
+      <Text style={styles.statLabel}>{label}</Text>
     </View>
   );
 }
@@ -85,81 +87,31 @@ export default function ProfileScreen() {
 
   return (
     <View style={[styles.screen, { backgroundColor: theme.colors.background }]}>
-      <MaterialAppBar title="我" variant="small" />
+      <ScreenHeader title="我" subtitle="阅读记录 · 外观 · 账户" />
       <ScrollView
         contentContainerStyle={{width:'100%',maxWidth:760,alignSelf:'center',
           paddingHorizontal: spacingTokens.lg,
-          paddingBottom: insets.bottom + 100,
+          paddingBottom: insets.bottom + FLOATING_TAB_BAR_SPACE,
         }}
       >
-        <View
-          style={[
-            styles.profileCard,
-            { backgroundColor: theme.colors.surfaceContainerLow },
-          ]}
-        >
+        <View style={styles.profileCard}>
+          <Gradient from={brand.green} to={brand.deep} id="profile" />
+          <View style={styles.profileGlow} />
           <View style={styles.profileHeader}>
-            <View
-              style={[
-                styles.avatar,
-                { backgroundColor: theme.colors.primaryContainer },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.avatarText,
-                  { color: theme.colors.onPrimaryContainer },
-                ]}
-              >
-                ◔
-              </Text>
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>{(ui.username||'读').slice(0,1).toUpperCase()}</Text>
             </View>
             <View style={styles.profileInfo}>
-              <Text
-                style={[styles.username, { color: theme.colors.onSurface }]}
-              >
-                {ui.username}
-              </Text>
-              <Text
-                style={[
-                  styles.userHandle,
-                  { color: theme.colors.onSurfaceVariant },
-                ]}
-              >
-                继续每天 15 分钟，养成阅读习惯
-              </Text>
+              <Text numberOfLines={1} style={styles.username}>{ui.username}</Text>
+              <Text style={styles.userHandle}>继续每天 15 分钟，养成阅读习惯</Text>
             </View>
           </View>
-        </View>
-
-        <View
-          style={[
-            styles.statsCard,
-            { backgroundColor: theme.colors.surfaceContainer },
-          ]}
-        >
-          <StatItem label="累计阅读" value={formatMinutes(total)} />
-          <View
-            style={[
-              styles.statsDivider,
-              { backgroundColor: theme.colors.outlineVariant },
-            ]}
-          />
-          <StatItem label="今日阅读" value={formatMinutes(today)} />
-          <View
-            style={[
-              styles.statsDivider,
-              { backgroundColor: theme.colors.outlineVariant },
-            ]}
-          />
-          <StatItem label="阅读天数" value={`${days}`} />
-          <View
-            style={[
-              styles.statsDivider,
-              { backgroundColor: theme.colors.outlineVariant },
-            ]}
-          />
-          <StatItem label="藏书" value={`${notes}`} />
+          <View style={styles.statsRow}>
+            <StatItem label="累计阅读" value={formatMinutes(total)} />
+            <StatItem label="今日" value={formatMinutes(today)} />
+            <StatItem label="阅读天数" value={`${days}`} />
+            <StatItem label="藏书" value={`${notes}`} />
+          </View>
         </View>
 
         <Text
@@ -216,12 +168,12 @@ export default function ProfileScreen() {
             { backgroundColor: theme.colors.surfaceContainerLow },
           ]}
         >
-          {[
-            { label: '云同步', icon: '↻',action:ui.refresh },
-            { label: '导入书籍', icon: '＋',action:ui.importBooks },
-            { label: '听书设置', icon: '⚙',action:ui.settings },
-            { label:'退出登录 / 切换账号',icon:'↗',action:ui.logout },
-          ].map((item, i, arr) => (
+          {([
+            { label: '云同步 · 备份与还原', icon: 'backup',action:ui.refresh },
+            { label: '导入书籍', icon: 'import',action:ui.importBooks },
+            { label: '听书设置', icon: 'headphones',action:ui.settings },
+            { label:'退出登录 / 切换账号',icon:'logout',action:ui.logout },
+          ] as {label:string;icon:IconName;action:()=>void}[]).map((item, i, arr) => (
             <Pressable
               key={item.label}
               onPress={item.action}
@@ -239,13 +191,13 @@ export default function ProfileScreen() {
               ]}
               accessibilityRole="button"
             >
-              <Text style={[styles.tileIcon, { color: theme.colors.onSurfaceVariant }]}>
-                {item.icon}
-              </Text>
+              <View style={[styles.tileIcon, { backgroundColor: theme.colors.primaryContainer }]}>
+                <Icon name={item.icon} size={18} color={theme.colors.primary} />
+              </View>
               <Text style={[styles.tileText, { color: theme.colors.onSurface }]}>
                 {item.label}
               </Text>
-              <Text style={[styles.tileArrow, { color: theme.colors.onSurfaceVariant }]}>›</Text>
+              <Icon name="chev" size={18} color={theme.colors.outline} />
             </Pressable>
           ))}
         </View>
@@ -265,105 +217,23 @@ export default function ProfileScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  profileCard: {
-    borderRadius: shapeTokens.extraLarge,
-    padding: spacingTokens.lg,
-    marginTop: spacingTokens.md,
-  },
-  profileHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  avatar: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: {
-    fontSize: 32,
-    fontWeight: '500',
-  },
-  profileInfo: {
-    flex: 1,
-    marginLeft: spacingTokens.lg,
-  },
-  username: {
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  userHandle: {
-    fontSize: 12,
-    marginTop: spacingTokens.xs,
-  },
-  statsCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: spacingTokens.lg,
-    borderRadius: shapeTokens.large,
-    paddingVertical: spacingTokens.lg,
-    paddingHorizontal: spacingTokens.md,
-  },
-  statItem: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  statValue: {
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  statLabel: {
-    fontSize: 11,
-    marginTop: 4,
-    letterSpacing: 0.4,
-    textTransform: 'uppercase',
-  },
-  statsDivider: {
-    width: StyleSheet.hairlineWidth,
-    height: 24,
-  },
-  sectionLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
-    marginTop: spacingTokens.xl,
-    marginBottom: spacingTokens.sm,
-    paddingHorizontal: spacingTokens.xs,
-  },
-  chartCard: {
-    borderRadius: shapeTokens.extraLarge,
-    paddingHorizontal: spacingTokens.lg,
-    paddingVertical: spacingTokens.lg,
-  },
-  tileGroup: {
-    borderRadius: shapeTokens.large,
-    overflow: 'hidden',
-  },
-  tile: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacingTokens.lg,
-    paddingVertical: spacingTokens.md,
-  },
-  tileIcon: {
-    width: 28,
-    fontSize: 18,
-    textAlign: 'center',
-  },
-  tileText: {
-    flex: 1,
-    marginLeft: spacingTokens.sm,
-    fontSize: 15,
-    fontWeight: '500',
-  },
-  tileArrow: {
-    fontSize: 20,
-  },
-  versionLabel: {
-    fontSize: 12,
-    textAlign: 'center',
-    marginTop: spacingTokens.xl,
-  },
+  profileCard: { borderRadius: 26, padding: 20, marginTop: 4, overflow: 'hidden' },
+  profileGlow: { position: 'absolute', width: 200, height: 200, borderRadius: 100, right: -70, top: -90, backgroundColor: 'rgba(201,162,89,0.18)' },
+  profileHeader: { flexDirection: 'row', alignItems: 'center' },
+  avatar: { width: 60, height: 60, borderRadius: 30, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.14)', borderWidth: 1.5, borderColor: 'rgba(201,162,89,0.8)' },
+  avatarText: { fontFamily: brand.serif, fontSize: 26, fontWeight: '700', color: '#FFFFFF' },
+  profileInfo: { flex: 1, marginLeft: spacingTokens.lg },
+  username: { fontFamily: brand.serif, fontSize: 20, fontWeight: '700', color: '#FFFFFF' },
+  userHandle: { fontSize: 12, marginTop: spacingTokens.xs, color: 'rgba(255,255,255,0.7)' },
+  statsRow: { flexDirection: 'row', marginTop: 20, paddingTop: 16, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: 'rgba(255,255,255,0.2)' },
+  statItem: { flex: 1, alignItems: 'center', paddingHorizontal: 2 },
+  statValue: { fontSize: 15, fontWeight: '700', color: brand.gold },
+  statLabel: { fontSize: 11, marginTop: 4, color: 'rgba(255,255,255,0.65)' },
+  sectionLabel: { fontFamily: brand.serif, fontSize: 17, fontWeight: '700', marginTop: spacingTokens.xl, marginBottom: spacingTokens.sm, paddingHorizontal: spacingTokens.xs },
+  chartCard: { borderRadius: 22, paddingHorizontal: spacingTokens.lg, paddingVertical: spacingTokens.lg, borderWidth: StyleSheet.hairlineWidth, borderColor: '#E6E1D4' },
+  tileGroup: { borderRadius: 22, overflow: 'hidden', borderWidth: StyleSheet.hairlineWidth, borderColor: '#E6E1D4' },
+  tile: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacingTokens.lg, paddingVertical: 12 },
+  tileIcon: { width: 34, height: 34, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  tileText: { flex: 1, marginLeft: spacingTokens.md, fontSize: 15, fontWeight: '500' },
+  versionLabel: { fontSize: 12, textAlign: 'center', marginTop: spacingTokens.xl },
 });

@@ -1,99 +1,83 @@
 import { DisplayText as Text } from '../components/DisplayText';
-import React, { useEffect, useMemo, useRef } from 'react';
-import {
-  ActionSheetIOS,
-  Alert,
-  Animated as RNAnimated,
-  Easing,
-  FlatList,
-  Platform,
-  Pressable,
-  StyleSheet,
-  TouchableOpacity,
-  View,
-  useWindowDimensions,
-} from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Animated as RNAnimated, Easing, FlatList, Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/types';
-import type {Book} from '../types/models';
-import {useLibraryUI,positionLabel,bookProgress} from '../tingye/library-ui';
-
-import {adaptiveShelfLayout} from '../tingye/reader-layout';
+import type { Book } from '../types/models';
+import { useLibraryUI, positionLabel, bookProgress } from '../tingye/library-ui';
+import { adaptiveShelfLayout } from '../tingye/reader-layout';
 import BookCover from '../components/BookCover';
-import MaterialAppBar from '../components/MaterialAppBar';
-import MaterialProgressBar from '../components/MaterialProgressBar';
-import MaterialButton from '../components/MaterialButton';
+import Icon from '../components/Icon';
+import Gradient from '../components/Gradient';
+import ScreenHeader from '../components/ScreenHeader';
+import { FLOATING_TAB_BAR_SPACE } from '../components/MaterialNavBar';
 import { useAppTheme } from '../theme/useAppTheme';
-import { spacing as spacingTokens, shape as shapeTokens } from '../theme/tokens';
+import { brand } from '../theme/tokens';
 
 interface Props {
   navigation: NativeStackNavigationProp<RootStackParamList>;
 }
 
-function showActionSheet(onDetail: () => void, onRemove: () => void) {
-  if (Platform.OS === 'ios') {
-    ActionSheetIOS.showActionSheetWithOptions(
-      { options: ['详情', '移出书架', '取消'], cancelButtonIndex: 2, destructiveButtonIndex: 1 },
-      (index) => {
-        if (index === 0) onDetail();
-        if (index === 1) onRemove();
-      }
-    );
-  } else {
-    Alert.alert('书籍操作', undefined, [
-      { text: '详情', onPress: onDetail },
-      { text: '移出书架', style: 'destructive', onPress: onRemove },
-      { text: '取消', style: 'cancel' },
-    ]);
-  }
+type Filter = 'all' | 'reading' | 'new';
+const FILTERS: { key: Filter; label: string }[] = [
+  { key: 'all', label: '全部' },
+  { key: 'reading', label: '在读' },
+  { key: 'new', label: '未开始' },
+];
+
+function todayKey() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 export default function ShelfScreen({ navigation }: Props) {
   const theme = useAppTheme();
   const insets = useSafeAreaInsets();
-  const ui=useLibraryUI();
-  const {width:windowWidth,fontScale}=useWindowDimensions();
-  const width=windowWidth-insets.left-insets.right;
-  const {columns,shelfWidth,cellWidth,coverWidth,coverHeight}=adaptiveShelfLayout(width,fontScale);
-  const list=useRef<FlatList<Book>>(null),headerHeight=useRef(0),scrollAnchor=useRef({index:0,headerOffset:0});
-  const previousColumns=useRef(columns),restore=useRef(false);
-  const rowHeight=coverHeight+Math.ceil(64*fontScale);
-  if(previousColumns.current!==columns){previousColumns.current=columns;restore.current=true;}
-  const restoreScroll=()=>{if(!restore.current)return;restore.current=false;const a=scrollAnchor.current;list.current?.scrollToOffset({offset:a.headerOffset>=0?a.headerOffset:headerHeight.current+Math.floor(a.index/columns)*rowHeight,animated:false});};
-  const items=ui.books;
-  const continueReading=items[0];
-  const progressLabel=(id?:string)=>positionLabel(ui.nativeBooks.find(b=>b.id===id));
-  const continuePercent=bookProgress(ui.nativeBooks.find(b=>b.id===continueReading?.id));
+  const ui = useLibraryUI();
+  const { width: windowWidth, fontScale } = useWindowDimensions();
+  const width = windowWidth - insets.left - insets.right;
+  const { columns, shelfWidth, cellWidth, coverWidth, coverHeight } = adaptiveShelfLayout(width, fontScale);
+  const [filter, setFilter] = useState<Filter>('all');
+  const list = useRef<FlatList<Book>>(null), headerHeight = useRef(0), scrollAnchor = useRef({ index: 0, headerOffset: 0 });
+  const previousColumns = useRef(columns), restore = useRef(false);
+  const rowHeight = coverHeight + Math.ceil(70 * fontScale);
+  if (previousColumns.current !== columns) { previousColumns.current = columns; restore.current = true; }
+  const restoreScroll = () => {
+    if (!restore.current) return;
+    restore.current = false;
+    const a = scrollAnchor.current;
+    list.current?.scrollToOffset({ offset: a.headerOffset >= 0 ? a.headerOffset : headerHeight.current + Math.floor(a.index / columns) * rowHeight, animated: false });
+  };
+  const native = (id?: string) => ui.nativeBooks.find(b => b.id === id);
+  const all = ui.books;
+  const items = useMemo(() => filter === 'all' ? all : all.filter(b => {
+    const n = ui.nativeBooks.find(x => x.id === b.id);
+    const started = !!n && (!!n.chapter || !!n.position);
+    return filter === 'reading' ? started : !started;
+  }), [all, filter, ui.nativeBooks]);
+  const continueReading = all[0];
+  const minutes = Math.round((ui.stats[todayKey()] || 0) / 60);
+  const subtitle = `${all.length} 本书 · 今日已读 ${minutes} 分钟`;
+  const actions = [
+    { icon: 'search' as const, label: '搜索', onPress: () => navigation.navigate('Search') },
+    { icon: 'sync' as const, label: ui.busy ? '同步中' : '同步', onPress: ui.refresh, disabled: ui.busy },
+    { icon: 'plus' as const, label: '导入书籍', onPress: ui.importBooks, disabled: ui.busy },
+  ];
 
-  if (items.length === 0) {
+  if (all.length === 0) {
     return (
-      <View style={[styles.empty, { backgroundColor: theme.colors.background }]}>
-        <MaterialAppBar
-          title="书架"
-          variant="small"
-          trailingIcon="⌕"
-          onTrailingPress={() => navigation.navigate('Search')}
-        />
+      <View style={[styles.screen, { backgroundColor: theme.colors.background }]}>
+        <ScreenHeader title="书架" subtitle="导入第一本书开始阅读" actions={actions} />
         <View style={styles.emptyContent}>
-          <View
-            style={[
-              styles.emptyMark,
-              { backgroundColor: theme.colors.secondaryContainer },
-            ]}
-          >
-            <Text style={[styles.emptyMarkText, { color: theme.colors.onSecondaryContainer }]}>☰</Text>
+          <View style={[styles.emptyMark, { backgroundColor: theme.colors.primaryContainer }]}>
+            <Icon name="shelf" size={44} color={theme.colors.primary} strokeWidth={1.6} />
           </View>
           <Text style={[styles.emptyTitle, { color: theme.colors.onBackground }]}>书架还是空的</Text>
-          <Text style={[styles.emptyBody, { color: theme.colors.onSurfaceVariant }]}>
-            导入你喜欢的书，{'\n'}随时在这里继续阅读和听书。
-          </Text>
-          <MaterialButton
-            label="导入书籍"
-            variant="filled"
-            onPress={ui.importBooks}
-            style={{ marginTop: spacingTokens.xl }}
-          />
+          <Text style={[styles.emptyBody, { color: theme.colors.onSurfaceVariant }]}>导入 EPUB、TXT 或 PDF，{'\n'}随时在这里继续阅读和听书。</Text>
+          <Pressable accessibilityRole="button" onPress={ui.importBooks} style={({ pressed }) => [styles.primaryPill, { backgroundColor: theme.colors.primary }, pressed && { opacity: 0.85 }]}>
+            <Icon name="plus" size={18} color="#FFFFFF" /><Text style={styles.primaryPillText}>导入书籍</Text>
+          </Pressable>
         </View>
       </View>
     );
@@ -101,66 +85,70 @@ export default function ShelfScreen({ navigation }: Props) {
 
   return (
     <View style={[styles.screen, { backgroundColor: theme.colors.background }]}>
-      <MaterialAppBar
-        title="书架"
-        variant="small"
-        trailingIcon="⌕"
-        onTrailingPress={() => navigation.navigate('Search')}
-      />
+      <ScreenHeader title="书架" subtitle={subtitle} actions={actions} />
       <FlatList ref={list}
-        style={{width:shelfWidth,alignSelf:'center'}}
+        style={{ width: shelfWidth, alignSelf: 'center' }}
         onContentSizeChange={restoreScroll}
-        onScroll={event=>{if(restore.current)return;const y=event.nativeEvent.contentOffset.y;scrollAnchor.current=y<headerHeight.current?{index:0,headerOffset:Math.max(0,y)}:{index:Math.floor((y-headerHeight.current)/rowHeight)*columns,headerOffset:-1};}}
+        onScroll={event => { if (restore.current) return; const y = event.nativeEvent.contentOffset.y; scrollAnchor.current = y < headerHeight.current ? { index: 0, headerOffset: Math.max(0, y) } : { index: Math.floor((y - headerHeight.current) / rowHeight) * columns, headerOffset: -1 }; }}
         scrollEventThrottle={100}
         data={items}
-        keyExtractor={(b) => b.id}
+        keyExtractor={b => b.id}
         key={columns}
         numColumns={columns}
-        contentContainerStyle={{
-          paddingHorizontal: spacingTokens.lg,
-          paddingBottom: insets.bottom + 100,
-        }}
-        ListHeaderComponent={<View onLayout={event=>{headerHeight.current=event.nativeEvent.layout.height;}}>
-          <View style={{flexDirection:"row",flexWrap:"wrap",gap:8,marginTop:12}}><MaterialButton label="导入书籍" icon="＋" disabled={ui.busy} onPress={ui.importBooks}/><MaterialButton label={ui.busy?"同步中…":"同步"} variant="tonal" disabled={ui.busy} onPress={ui.refresh}/></View>
-          {!!ui.notice&&<Pressable onPress={ui.dismissNotice}><Text style={{color:theme.colors.onSurfaceVariant,paddingVertical:12}}>{ui.notice}</Text></Pressable>}
-          {continueReading ? (
-            <ContinueReadingCard
-              book={continueReading}
-              percent={continuePercent}
-              progressLabel={progressLabel(continueReading.id)}
-              onPress={() => navigation.navigate('Reader', { bookId: continueReading.id })}
-              onDetail={() => navigation.navigate('BookDetail', { bookId: continueReading.id })}
-            />
-          ) : null}</View>
-        }
-        columnWrapperStyle={{ gap: spacingTokens.md }}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: FLOATING_TAB_BAR_SPACE + insets.bottom }}
+        ListHeaderComponent={<View onLayout={event => { headerHeight.current = event.nativeEvent.layout.height; }}>
+          {!!ui.notice && <Pressable accessibilityRole="button" accessibilityHint="轻点关闭提示" onPress={ui.dismissNotice}
+            style={[styles.notice, { backgroundColor: theme.colors.surfaceContainerLow, borderColor: theme.colors.outlineVariant }]}>
+            <Icon name="cloud" size={18} color={theme.colors.primary} />
+            <Text style={{ flex: 1, color: theme.colors.onSurfaceVariant, fontSize: 13, lineHeight: 19 }}>{ui.notice}</Text>
+            <Icon name="close" size={16} color={theme.colors.outline} />
+          </Pressable>}
+          {continueReading && <ContinueReadingCard
+            book={continueReading}
+            percent={bookProgress(native(continueReading.id))}
+            progressLabel={positionLabel(native(continueReading.id))}
+            onRead={() => navigation.navigate('Reader', { bookId: continueReading.id })}
+            onListen={() => navigation.navigate('Reader', { bookId: continueReading.id, listen: true })}
+            onDetail={() => navigation.navigate('BookDetail', { bookId: continueReading.id })}
+          />}
+          <View style={styles.sectionRow}>
+            <Text style={[styles.sectionTitle, { color: theme.colors.onSurface }]}>我的书架</Text>
+            <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 12 }}>长按书籍可备份 / 修复 / 移除</Text>
+          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
+            {FILTERS.map(f => {
+              const on = f.key === filter;
+              return <Pressable key={f.key} accessibilityRole="button" accessibilityState={{ selected: on }} onPress={() => setFilter(f.key)}
+                style={[styles.chip, on ? { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary } : { backgroundColor: theme.colors.surfaceContainerLow, borderColor: theme.colors.outlineVariant }]}>
+                <Text style={{ color: on ? theme.colors.onPrimary : theme.colors.onSurfaceVariant, fontSize: 13, fontWeight: on ? '700' : '500' }}>{f.label}</Text>
+              </Pressable>;
+            })}
+          </ScrollView>
+          {items.length === 0 && <Text style={{ color: theme.colors.onSurfaceVariant, textAlign: 'center', paddingVertical: 32 }}>这个分类暂时没有书</Text>}
+        </View>}
+        columnWrapperStyle={{ gap: 12 }}
         renderItem={({ item }) => {
-          const percent=100*bookProgress(ui.nativeBooks.find(b=>b.id===item.id));
+          const n = native(item.id);
+          const percent = bookProgress(n);
           return (
-            <TouchableOpacity
-              style={[styles.cell,{maxWidth:cellWidth,height:rowHeight,marginBottom:0}]}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`${item.title}，${positionLabel(n)}`}
+              accessibilityHint="长按查看更多操作"
+              style={({ pressed }) => [styles.cell, { maxWidth: cellWidth, height: rowHeight }, pressed && { opacity: 0.7 }]}
               onPress={() => navigation.navigate('Reader', { bookId: item.id })}
               onLongPress={() => ui.actions(item.id)}
             >
-              <BookCover book={item} width={coverWidth} height={coverHeight} />
-              <Text
-                style={[styles.cellTitle, { maxWidth:cellWidth-8,color: theme.colors.onBackground }]}
-                numberOfLines={1}
-              >
-                {item.title}
-              </Text>
-              <Text
-                style={[styles.cellMeta, { color: theme.colors.onSurfaceVariant }]}
-                numberOfLines={1}
-              >
-                {progressLabel(item.id)}
-              </Text>
-              {percent > 0 ? (
-                <View style={styles.cellProgress}>
-                  <MaterialProgressBar value={percent / 100} height={3} />
-                </View>
-              ) : null}
-            </TouchableOpacity>
+              <View style={styles.coverShadow}><BookCover book={item} width={coverWidth} height={coverHeight} /></View>
+              <Text style={[styles.cellTitle, { maxWidth: cellWidth - 4, color: theme.colors.onBackground }]} numberOfLines={1}>{item.title}</Text>
+              <View style={[styles.cellMetaRow, { width: coverWidth }]}>
+                <Text style={[styles.cellMeta, { color: theme.colors.onSurfaceVariant }]} numberOfLines={1}>{positionLabel(n)}</Text>
+                {percent > 0 && <Text style={[styles.cellMeta, { color: theme.colors.primary }]}>{Math.round(percent * 100)}%</Text>}
+              </View>
+              {percent > 0 && <View style={[styles.cellTrack, { width: coverWidth, backgroundColor: theme.colors.outlineVariant }]}>
+                <View style={{ width: `${Math.round(percent * 100)}%`, height: '100%', borderRadius: 2, backgroundColor: theme.colors.primary }} />
+              </View>}
+            </Pressable>
           );
         }}
       />
@@ -169,326 +157,72 @@ export default function ShelfScreen({ navigation }: Props) {
 }
 
 interface ContinueCardProps {
-  book: Book | undefined;
+  book: Book;
   progressLabel: string;
   percent: number;
-  onPress: () => void;
+  onRead: () => void;
+  onListen: () => void;
   onDetail: () => void;
 }
 
-function ContinueReadingCard({ book, percent, progressLabel, onPress, onDetail }: ContinueCardProps) {
-  const theme = useAppTheme();
-  // Spring-driven card lift: scale + shadow swell when pressed.
-  const press = useRef(new RNAnimated.Value(0)).current;
+function ContinueReadingCard({ book, percent, progressLabel, onRead, onListen, onDetail }: ContinueCardProps) {
   const fill = useRef(new RNAnimated.Value(0)).current;
-  // Idle "tilt" transform — gives the cover a subtle shelf-style perspective.
-  const idle = useRef(new RNAnimated.Value(1)).current;
-
-  // Animate progress from 0 → percent on mount so the bar visibly fills
-  // instead of jumping to its final state.
   useEffect(() => {
     fill.setValue(0);
-    RNAnimated.timing(fill, {
-      toValue: percent,
-      duration: 900,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: false,
-    }).start();
+    RNAnimated.timing(fill, { toValue: percent, duration: 900, easing: Easing.out(Easing.cubic), useNativeDriver: false }).start();
   }, [percent, fill]);
-
-  // One-time idle-to-0.5 micro animation on mount → book "settles" onto shelf.
-  useEffect(() => {
-    idle.setValue(0);
-    RNAnimated.timing(idle, {
-      toValue: 1,
-      duration: 700,
-      easing: Easing.out(Easing.quad),
-      useNativeDriver: true,
-    }).start();
-  }, [idle]);
-
-  const onPressIn = () =>
-    RNAnimated.spring(press, {
-      toValue: 1,
-      useNativeDriver: true,
-      friction: 6,
-      tension: 120,
-    }).start();
-  const onPressOut = () =>
-    RNAnimated.spring(press, {
-      toValue: 0,
-      useNativeDriver: true,
-      friction: 6,
-      tension: 120,
-    }).start();
-
-  if (!book) return null;
-
-  const cardScale = press.interpolate({ inputRange: [0, 1], outputRange: [1, 0.98] });
-  const coverRotate = idle.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['-3deg', '0deg'],
-  });
-  const coverTranslateY = idle.interpolate({
-    inputRange: [0, 1],
-    outputRange: [-4, 0],
-  });
-  const shadowOpacity = press.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.08, 0.18],
-  });
-  const shadowRadius = press.interpolate({
-    inputRange: [0, 1],
-    outputRange: [4, 10],
-  });
-
+  const width = fill.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] });
   return (
-    <RNAnimated.View
-      style={[
-        styles.continueCardWrap,
-        {
-          transform: [{ scale: cardScale }],
-          shadowColor: theme.colors.shadow,
-          shadowOpacity:0.08,
-          shadowRadius:4,
-        },
-      ]}
-    >
-      <Pressable
-        onPress={onPress}
-        onPressIn={onPressIn}
-        onPressOut={onPressOut}
-        android_ripple={{ color: theme.colors.outlineVariant }}
-        style={({ pressed }) => [
-          styles.continueCard,
-          {
-            backgroundColor: theme.colors.surfaceContainer,
-            opacity: pressed ? 0.95 : 1,
-          },
-        ]}
-      >
-        <View style={styles.continueHeader}>
-          <Text style={[styles.continueOverline, { color: theme.colors.primary }]}>继续阅读</Text>
-          <Text style={[styles.continuePercent, { color: theme.colors.onSurfaceVariant }]}>
-            {progressLabel}
-          </Text>
+    <Pressable accessibilityRole="button" accessibilityLabel={`继续阅读 ${book.title}`} onPress={onRead} onLongPress={onDetail}
+      style={({ pressed }) => [styles.continueCard, pressed && { transform: [{ scale: 0.99 }] }]}>
+      <Gradient from="#2B5C4B" to="#1C3E33" id="continue" />
+      <View style={styles.continueGlow} />
+      <View style={styles.continueCover}><BookCover book={book} width={86} height={118} /></View>
+      <View style={{ flex: 1, marginLeft: 16 }}>
+        <Text style={styles.continueOverline}>继续阅读</Text>
+        <Text numberOfLines={2} style={styles.continueTitle}>{book.title}</Text>
+        <Text numberOfLines={1} style={styles.continueMeta}>{book.author ? `${book.author} · ` : ''}{progressLabel}</Text>
+        <View style={styles.continueTrack}><RNAnimated.View style={{ width, height: '100%', borderRadius: 2, backgroundColor: brand.gold }} /></View>
+        <View style={styles.continueActions}>
+          <Pressable accessibilityRole="button" accessibilityLabel="阅读" onPress={onRead} style={({ pressed }) => [styles.readPill, pressed && { opacity: 0.85 }]}>
+            <Text style={{ color: brand.deep, fontSize: 13, fontWeight: '700' }}>阅读</Text>
+          </Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel="听书" onPress={onListen} style={({ pressed }) => [styles.listenPill, pressed && { opacity: 0.7 }]}>
+            <Icon name="headphones" size={15} color="#FFFFFF" /><Text style={{ color: '#FFFFFF', fontSize: 13, fontWeight: '700' }}>听书</Text>
+          </Pressable>
         </View>
-        <View style={styles.continueBody}>
-          <RNAnimated.View
-            style={[
-              styles.continueCoverWrap,
-              {
-                transform: [
-                  { perspective: 600 },
-                  { rotate: coverRotate },
-                  { translateY: coverTranslateY },
-                ],
-              },
-            ]}
-          >
-            <BookCover book={book} width={72} height={100} />
-          </RNAnimated.View>
-          <View style={styles.continueInfo}>
-            <Text
-              style={[styles.continueTitle, { color: theme.colors.onSurface }]}
-              numberOfLines={2}
-            >
-              {book.title}
-            </Text>
-            <Text
-              style={[styles.continueAuthor, { color: theme.colors.onSurfaceVariant }]}
-              numberOfLines={1}
-            >
-              {book.author}
-            </Text>
-            <View style={styles.continueProgress}>
-              <AnimatedProgressBar fill={fill} />
-            </View>
-            <View style={styles.continueActions}>
-              <Pressable
-                onPress={onPress}
-                accessibilityRole="button"
-                style={({ pressed }) => [pressed && styles.pressed]}
-              >
-                <Text style={[styles.continuePrimaryAction, { color: theme.colors.primary }]}>
-                  继续 ›
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={onDetail}
-                accessibilityRole="button"
-                style={({ pressed }) => [pressed && styles.pressed]}
-              >
-                <Text
-                  style={[
-                    styles.continueSecondaryAction,
-                    { color: theme.colors.onSurfaceVariant },
-                  ]}
-                >
-                  详情
-                </Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Pressable>
-    </RNAnimated.View>
-  );
-}
-
-/**
- * Animated variant of MaterialProgressBar driven by an `Animated.Value`.
- * The non-animated version still exists for non-progress-bar use cases;
- * this one re-implements the layout inline so we can bind `width: '${fill*100}%'`
- * to the driver.
- */
-function AnimatedProgressBar({ fill }: { fill: RNAnimated.AnimatedInterpolation<number> }) {
-  const theme = useAppTheme();
-  const width = fill.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0%', '100%'],
-  });
-  return (
-    <View
-      style={{
-        height: 4,
-        borderRadius: 2,
-        backgroundColor: theme.colors.surfaceVariant,
-        overflow: 'hidden',
-      }}
-    >
-      <RNAnimated.View
-        style={{
-          height: '100%',
-          width,
-          backgroundColor: theme.colors.primary,
-        }}
-      />
-    </View>
+      </View>
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  empty: { flex: 1 },
-  emptyContent: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: spacingTokens.xl,
-  },
-  emptyMark: {
-    width: 96,
-    height: 96,
-    borderRadius: shapeTokens.extraLarge,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacingTokens.xl,
-  },
-  emptyMarkText: {
-    fontSize: 44,
-    fontWeight: '500',
-  },
-  emptyTitle: {
-    fontSize: 22,
-    fontWeight: '600',
-    marginBottom: spacingTokens.sm,
-  },
-  emptyBody: {
-    fontSize: 14,
-    lineHeight: 22,
-    textAlign: 'center',
-  },
-  continueCardWrap: {
-    marginVertical: spacingTokens.lg,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 4,
-    borderRadius: shapeTokens.extraLarge,
-  },
-  continueCard: {
-    borderRadius: shapeTokens.extraLarge,
-    padding: spacingTokens.lg,
-  },
-  continueHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'baseline',
-    marginBottom: spacingTokens.md,
-  },
-  continueOverline: {
-    fontSize: 12,
-    fontWeight: '600',
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
-  },
-  continuePercent: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  continueBody: {
-    flexDirection: 'row',
-  },
-  continueCoverWrap: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.18,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  continueInfo: {
-    flex: 1,
-    marginLeft: spacingTokens.lg,
-    justifyContent: 'space-between',
-  },
-  continueTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    lineHeight: 24,
-  },
-  continueAuthor: {
-    fontSize: 13,
-    marginTop: spacingTokens.xs,
-  },
-  continueProgress: {
-    marginTop: spacingTokens.md,
-  },
-  continueActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: spacingTokens.md,
-  },
-  continuePrimaryAction: {
-    fontSize: 14,
-    fontWeight: '600',
-    marginRight: spacingTokens.lg,
-  },
-  continueSecondaryAction: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  cell: {
-    flex: 1,
-    alignItems: 'center',
-    marginBottom: spacingTokens.xl,
-    maxWidth: 110,
-  },
-  cellTitle: {
-    fontSize: 13,
-    fontWeight: '500',
-    marginTop: spacingTokens.sm,
-    textAlign: 'center',
-    maxWidth: 100,
-  },
-  cellMeta: {
-    fontSize: 11,
-    marginTop: 2,
-  },
-  cellProgress: {
-    marginTop: spacingTokens.xs,
-    width: '100%',
-    paddingHorizontal: spacingTokens.xs,
-  },
-  pressed: {
-    opacity: 0.6,
-  },
+  emptyContent: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, paddingBottom: FLOATING_TAB_BAR_SPACE },
+  emptyMark: { width: 104, height: 104, borderRadius: 32, alignItems: 'center', justifyContent: 'center', marginBottom: 24 },
+  emptyTitle: { fontFamily: brand.serif, fontSize: 22, fontWeight: '700', marginBottom: 8 },
+  emptyBody: { fontSize: 14, lineHeight: 22, textAlign: 'center' },
+  primaryPill: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 46, paddingHorizontal: 24, borderRadius: 23, marginTop: 24 },
+  primaryPillText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
+  notice: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, padding: 14, borderRadius: 18, borderWidth: StyleSheet.hairlineWidth, marginTop: 4, marginBottom: 12 },
+  continueCard: { flexDirection: 'row', alignItems: 'center', borderRadius: 26, padding: 18, overflow: 'hidden', marginTop: 4, shadowColor: '#1C3E33', shadowOpacity: 0.25, shadowRadius: 18, shadowOffset: { width: 0, height: 10 } },
+  continueGlow: { position: 'absolute', width: 180, height: 180, borderRadius: 90, right: -60, top: -70, backgroundColor: 'rgba(201,162,89,0.16)' },
+  continueCover: { shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 10 },
+  continueOverline: { color: brand.gold, fontSize: 12, fontWeight: '700', letterSpacing: 2 },
+  continueTitle: { color: '#FFFFFF', fontFamily: brand.serif, fontSize: 19, fontWeight: '700', lineHeight: 26, marginTop: 6 },
+  continueMeta: { color: 'rgba(255,255,255,0.7)', fontSize: 12, marginTop: 4 },
+  continueTrack: { height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.18)', overflow: 'hidden', marginTop: 12 },
+  continueActions: { flexDirection: 'row', gap: 10, marginTop: 14 },
+  readPill: { height: 34, paddingHorizontal: 20, borderRadius: 17, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
+  listenPill: { flexDirection: 'row', gap: 5, height: 34, paddingHorizontal: 16, borderRadius: 17, borderWidth: 1, borderColor: 'rgba(255,255,255,0.5)', alignItems: 'center', justifyContent: 'center' },
+  sectionRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginTop: 24, marginBottom: 10 },
+  sectionTitle: { fontFamily: brand.serif, fontSize: 19, fontWeight: '700' },
+  chips: { gap: 8, paddingBottom: 16 },
+  chip: { height: 34, paddingHorizontal: 16, borderRadius: 17, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  cell: { flex: 1, alignItems: 'center' },
+  coverShadow: { shadowColor: '#1E2A23', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.14, shadowRadius: 10 },
+  cellTitle: { fontFamily: brand.serif, fontSize: 14, fontWeight: '700', marginTop: 10, textAlign: 'center' },
+  cellMetaRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 3 },
+  cellMeta: { fontSize: 11 },
+  cellTrack: { height: 3, borderRadius: 2, marginTop: 5, overflow: 'hidden' },
 });

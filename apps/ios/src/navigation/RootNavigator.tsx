@@ -14,19 +14,20 @@ import SearchScreen from '../screens/SearchScreen';
 import BookDetailScreen from '../screens/BookDetailScreen';
 function ReaderScreen({route,navigation}:NativeStackScreenProps<RootStackParamList,'Reader'>){
  const ui=useLibraryUI(),theme=useAppTheme();
- useEffect(()=>{let active=true;void ui.open(route.params.bookId,route.params.initialChapterIndex).finally(()=>{if(active)navigation.goBack();});return()=>{active=false;};},[route.params.bookId,route.params.initialChapterIndex]);
+ useEffect(()=>{let active=true;void ui.open(route.params.bookId,route.params.initialChapterIndex,route.params.listen).finally(()=>{if(active)navigation.goBack();});return()=>{active=false;};},[route.params.bookId,route.params.initialChapterIndex]);
  return <View style={{flex:1,justifyContent:'center',backgroundColor:theme.colors.background}}><ActivityIndicator color={theme.colors.primary}/></View>;
 }
 import MaterialNavBar from '../components/MaterialNavBar';
 import type { NavBarItem } from '../components/MaterialNavBar';
+import type { IconName } from '../components/Icon';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<TabParamList>();
 
-const TAB_DEFS: { key: keyof TabParamList; icon: string; label: string }[] = [
-  { key: 'Discover', icon: '◯', label: '发现' },
-  { key: 'Shelf', icon: '☰', label: '书架' },
-  { key: 'Profile', icon: '◔', label: '我' },
+const TAB_DEFS: { key: keyof TabParamList; icon: IconName; label: string }[] = [
+  { key: 'Shelf', icon: 'shelf', label: '书架' },
+  { key: 'Discover', icon: 'compass', label: '发现' },
+  { key: 'Profile', icon: 'user', label: '我' },
 ];
 
 function Tabs() {
@@ -44,8 +45,8 @@ function Tabs() {
         return <MaterialNavBar items={items} />;
       }}
     >
-      <Tab.Screen name="Discover" component={DiscoverScreen} />
       <Tab.Screen name="Shelf" component={ShelfScreen} />
+      <Tab.Screen name="Discover" component={DiscoverScreen} />
       <Tab.Screen name="Profile" component={ProfileScreen} />
     </Tab.Navigator>
   );
