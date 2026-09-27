@@ -48,14 +48,21 @@ export function minimaxSubtitleWords(segments:unknown){
 }
 // MiniMax files live in mainland storage next to most listeners; fetching them
 // directly avoids relaying every clip through the overseas server twice.
-async function directMinimaxAudio(data:{url?:unknown;subtitleUrl?:unknown},signal:AbortSignal){
+const DIRECT_AUDIO_TIMEOUT_MS=15000;
+async function directMinimaxAudio(data:{url?:unknown;subtitleUrl?:unknown},parent:AbortSignal){
   const url=providerFileUrl(data.url),subtitleUrl=providerFileUrl(data.subtitleUrl);
   if(!url)throw Error('语音地址无效');
-  const subtitles=subtitleUrl?fetch(subtitleUrl,{signal,redirect:'error'}).then(r=>r.ok?r.json():[]).then(minimaxSubtitleWords,()=>[] as TimedWord[]):Promise.resolve([] as TimedWord[]);
-  const response=await fetch(url,{signal,redirect:'error'});
-  if(!response.ok)throw Error('语音下载失败');
-  const bytes=new Uint8Array(await response.arrayBuffer());
-  return {bytes,words:await subtitles};
+  // A slow storage link must leave enough of the request budget for the relay fallback.
+  const controller=new AbortController(),cancel=()=>controller.abort(),timer=setTimeout(cancel,DIRECT_AUDIO_TIMEOUT_MS);
+  if(parent.aborted)controller.abort();else parent.addEventListener('abort',cancel,{once:true});
+  const signal=controller.signal;
+  try{
+    const subtitles=subtitleUrl?fetch(subtitleUrl,{signal,redirect:'error'}).then(r=>r.ok?r.json():[]).then(minimaxSubtitleWords,()=>[] as TimedWord[]):Promise.resolve([] as TimedWord[]);
+    const response=await fetch(url,{signal,redirect:'error'});
+    if(!response.ok)throw Error('语音下载失败');
+    const bytes=new Uint8Array(await response.arrayBuffer());
+    return {bytes,words:await subtitles};
+  }finally{clearTimeout(timer);parent.removeEventListener('abort',cancel);}
 }
 class ReaderPlayer {
   private listeners = new Set<() => void>();
