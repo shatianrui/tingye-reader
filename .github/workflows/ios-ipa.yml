@@ -11,7 +11,7 @@ on:
       - .github/workflows/ios-ipa.yml
 
 permissions:
-  contents: read
+  contents: write # publish the IPA as a GitHub Release asset
 
 concurrency:
   group: ios-ipa-${{ github.ref }}
@@ -97,3 +97,23 @@ jobs:
             apps/ios/${{ steps.release.outputs.file }}.sha256
           if-no-files-found: error
           retention-days: 30
+      # Workflow artifacts always download as .zip; release assets download as the raw .ipa.
+      - name: Publish IPA to GitHub Release
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.release.outputs.version }}
+          BUILD_NUMBER: ${{ steps.release.outputs.build_number }}
+          FILE: ${{ steps.release.outputs.file }}
+        shell: bash
+        run: |
+          tag="ios-v${VERSION}-build${BUILD_NUMBER}"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" "$FILE" "$FILE.sha256" --clobber
+          else
+            gh release create "$tag" "$FILE" "$FILE.sha256" \
+              --target "$GITHUB_SHA" \
+              --title "听页 iOS ${VERSION} (${BUILD_NUMBER})" \
+              --notes "未签名 IPA（${GITHUB_SHA::7}）。需用自己的证书签名后安装，例如 AltStore / Sideloadly / 企业签名。"
+          fi
+          echo "Release: https://github.com/${GITHUB_REPOSITORY}/releases/tag/${tag}" >> "$GITHUB_STEP_SUMMARY"
