@@ -80,15 +80,15 @@ function ChapterSlider({ colors, chapter, chapterCount, onSeek, onPrev, onNext }
   const shown = preview ?? chapter;
   const percent = `${last === 0 ? 100 : Math.round((shown / last) * 100)}%` as const;
   return (
-    <View style={s.slider}>
-      {preview !== null && <Text style={[s.sliderBubble, { color: colors.text, backgroundColor: colors.surface, borderColor: eink ? colors.text : colors.line }]}>第 {preview + 1} / {chapterCount} 章</Text>}
-      <View accessible accessibilityRole="adjustable" accessibilityLabel="章节进度" accessibilityValue={{ min: 1, max: chapterCount, now: chapter + 1, text: `第 ${chapter + 1} 章，共 ${chapterCount} 章` }}
-        accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
-        onAccessibilityAction={e => (e.nativeEvent.actionName === 'increment' ? onNext() : onPrev())}
-        onLayout={e => { width.current = e.nativeEvent.layout.width; }} hitSlop={{ top: 14, bottom: 14 }} {...responder.panHandlers}
-        style={[s.track, { backgroundColor: eink ? colors.surface : colors.line, borderWidth: eink ? 1 : 0, borderColor: colors.text }]}>
-        <View pointerEvents="none" style={{ width: percent, height: '100%', backgroundColor: eink ? colors.text : colors.accent, borderRadius: 3 }} />
-        <View pointerEvents="none" style={[s.knob, preview !== null && s.knobActive, { left: percent, backgroundColor: colors.surface, borderColor: eink ? colors.text : colors.accent }]} />
+    // 44pt touch target (Apple HIG) around the 5pt visual track; its width is the seek coordinate space.
+    <View accessible accessibilityRole="adjustable" accessibilityLabel="章节进度" accessibilityValue={{ min: 1, max: chapterCount, now: chapter + 1, text: `第 ${chapter + 1} 章，共 ${chapterCount} 章` }}
+      accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
+      onAccessibilityAction={e => (e.nativeEvent.actionName === 'increment' ? onNext() : onPrev())}
+      onLayout={e => { width.current = e.nativeEvent.layout.width; }} {...responder.panHandlers} style={s.slider}>
+      {preview !== null && <Text pointerEvents="none" style={[s.sliderBubble, { color: colors.text, backgroundColor: colors.surface, borderColor: eink ? colors.text : colors.line }]}>第 {preview + 1} / {chapterCount} 章</Text>}
+      <View pointerEvents="none" style={[s.track, { backgroundColor: eink ? colors.surface : colors.line, borderWidth: eink ? 1 : 0, borderColor: colors.text }]}>
+        <View style={{ width: percent, height: '100%', backgroundColor: eink ? colors.text : colors.accent, borderRadius: 3 }} />
+        <View style={[s.knob, preview !== null && s.knobActive, { left: percent, backgroundColor: colors.surface, borderColor: eink ? colors.text : colors.accent }]} />
       </View>
     </View>
   );
@@ -265,8 +265,8 @@ const s = StyleSheet.create({
   top: { position: 'absolute', top: 0, minHeight: 60, paddingHorizontal: 14, paddingVertical: 8, flexDirection: 'row', alignItems: 'center', gap: 8 },
   bottom: { position: 'absolute', bottom: 0, paddingTop: 14, paddingBottom: 8, gap: 10 },
   chapterRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  slider: { flex: 1, justifyContent: 'center' },
-  sliderBubble: { position: 'absolute', bottom: 16, alignSelf: 'center', fontSize: 12, fontWeight: '600', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
+  slider: { flex: 1, height: 44, justifyContent: 'center' },
+  sliderBubble: { position: 'absolute', bottom: 34, alignSelf: 'center', fontSize: 12, fontWeight: '600', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
   track: { height: 5, borderRadius: 3, justifyContent: 'center' },
   knob: { position: 'absolute', width: 16, height: 16, borderRadius: 8, marginLeft: -8, borderWidth: 2.5 },
   knobActive: { width: 22, height: 22, borderRadius: 11, marginLeft: -11 },
