@@ -2,6 +2,7 @@ import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '../theme/useAppTheme';
+import { brand } from '../theme/tokens';
 import MaterialNavIcon from './MaterialNavIcon';
 import type { IconName } from './Icon';
 
@@ -47,6 +48,6 @@ const styles = StyleSheet.create({
   bar: {
     width: '100%', maxWidth: 520, height: 62, borderRadius: 31, flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: 7, borderWidth: StyleSheet.hairlineWidth,
-    shadowColor: '#1E2A23', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.12, shadowRadius: 24, elevation: 8,
+    shadowColor: brand.ink, shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.12, shadowRadius: 24, elevation: 8,
   },
 });

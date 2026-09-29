@@ -4,6 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches:
+      - main
       - deploy/tencent-cloud
     paths:
       - apps/ios/**
@@ -19,6 +20,10 @@ concurrency:
 jobs:
   build:
     runs-on: macos-15
+    outputs:
+      version: ${{ steps.release.outputs.version }}
+      build_number: ${{ steps.release.outputs.build_number }}
+      file: ${{ steps.release.outputs.file }}
     defaults:
       run:
         working-directory: apps/ios
@@ -82,6 +87,7 @@ jobs:
           (cd "$RUNNER_TEMP/unsigned-ipa" && zip -qry "$GITHUB_WORKSPACE/apps/ios/$file" Payload)
           unzip -tq "$file"
           shasum -a 256 "$file" | tee "$file.sha256"
+          echo "IPA \`$file\`: $(du -h "$file" | cut -f1)" >> "$GITHUB_STEP_SUMMARY"
           {
             echo "version=$version"
             echo "build_number=$build_number"
@@ -95,3 +101,41 @@ jobs:
             apps/ios/${{ steps.release.outputs.file }}.sha256
           if-no-files-found: error
           retention-days: 30
+  # Workflow artifacts always download as .zip; release assets download as the raw .ipa.
+  # Only this job gets a write token, and it runs no repository code.
+  publish:
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: tingye-ios-${{ needs.build.outputs.version }}-build${{ needs.build.outputs.build_number }}-unsigned
+      - name: Publish IPA to GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ needs.build.outputs.version }}
+          BUILD_NUMBER: ${{ needs.build.outputs.build_number }}
+          FILE: ${{ needs.build.outputs.file }}
+        shell: bash
+        run: |
+          tag="ios-v${VERSION}-build${BUILD_NUMBER}"
+          # A release belongs to one commit: re-runs of that commit replace its assets,
+          # a later commit without a version bump gets its own commit-suffixed release.
+          if gh release view "$tag" >/dev/null 2>&1; then
+            if [ "$(gh api "repos/${GH_REPO}/commits/${tag}" --jq .sha)" != "$GITHUB_SHA" ]; then
+              tag="${tag}-${GITHUB_SHA::7}"
+            fi
+          fi
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" "$FILE" "$FILE.sha256" --clobber
+          else
+            gh release create "$tag" "$FILE" "$FILE.sha256" \
+              --target "$GITHUB_SHA" \
+              --title "听页 iOS ${VERSION} (${BUILD_NUMBER})" \
+              --notes "未签名 IPA（${GITHUB_SHA::7}）。需用自己的证书签名后安装，例如 AltStore / Sideloadly。"
+          fi
+          echo "Release: https://github.com/${GH_REPO}/releases/tag/${tag}" >> "$GITHUB_STEP_SUMMARY"
