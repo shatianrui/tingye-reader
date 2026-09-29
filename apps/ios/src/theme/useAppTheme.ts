@@ -32,7 +32,7 @@ export interface AppTheme {
  *   (system / light / dark).
  * - Re-renders when the user toggles the mode or the system scheme changes.
  *
- * The reading surface (ReaderScreen) keeps its dedicated `readerThemes.ts`
+ * The reading surface (ReaderApplication) keeps its dedicated `tingye/themes.ts`
  * palette because the reading state is opt-in and must not depend on the
  * host chrome's theme.
  */

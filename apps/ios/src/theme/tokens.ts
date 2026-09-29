@@ -1,15 +1,15 @@
 /**
- * Material You (Material Design 3) design tokens for the we_reader's system UI.
+ * Design tokens for the 听页 app chrome (1.9 Figma redesign).
  *
- * The reading surface (ReaderScreen) keeps its own dedicated palette
- * (`readerThemes.ts`) because reading mode is a focused, opt-in state that
- * should not depend on the host app's chrome theme.
+ * The reading surface keeps its own palette (`src/tingye/themes.ts`) because
+ * reading mode must not depend on the host app's chrome theme.
  *
  * This file is the single source of truth for the rest of the app:
- * navigation, shelves, lists, detail pages, search, profile and tingye.
+ * navigation, shelves, lists, detail pages, search, profile and account.
  *
- * Color palette: Material 3 Tonal Spot generated from a green seed (#006B5F).
- * Surface roles are layered to express hierarchy without heavy shadows.
+ * Color palette: warm forest green (#2B5C4B) on paper (#F6F3EA) with a gold
+ * accent (#C9A259). Role names follow Material 3 so surfaces stay layered
+ * without heavy shadows.
  */
 
 import { Platform } from 'react-native';
@@ -149,7 +149,12 @@ export const brand = {
   highlight: '#EFDFB4',
   deep: '#1C3E33',
   green: '#2B5C4B',
-  serif: 'Songti SC',
+  // Bundled Noto Serif CJK SC (registered by useReaderFonts). iOS does not
+  // preinstall Songti SC, so naming it silently fell back to PingFang.
+  serif: 'ReaderSerif',
+  onBrand: '#F6F3EA',
+  deepest: '#0F241C',
+  ink: '#1E2A23',
 } as const;
 
 // ---------------------------------------------------------------------------

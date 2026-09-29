@@ -5,6 +5,7 @@ import {signIn,type Session,type Credentials} from './client';
 import type {ReadingTheme} from './themes';
 import Icon from '../components/Icon';
 import Gradient from '../components/Gradient';
+import {brand} from '../theme/tokens';
 export default function AccountScreen({colors,onSignedIn}:{colors:ReadingTheme;onSignedIn:(value:Session)=>void}){
  const [mode,setMode]=useState<Credentials['action']>('login'),[username,setUsername]=useState(''),[password,setPassword]=useState(''),[invite,setInvite]=useState(''),[code,setCode]=useState(''),[error,setError]=useState(''),[busy,setBusy]=useState(false);
  const [result,setResult]=useState<(Session&{recoveryCode?:string})|null>(null),[saved,setSaved]=useState(false);
@@ -14,7 +15,7 @@ export default function AccountScreen({colors,onSignedIn}:{colors:ReadingTheme;o
  return <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets contentContainerStyle={styles.page}>
   <View style={styles.brand}>
    <View style={[styles.logo,{backgroundColor:colors.accent}]}><Gradient from={colors.accent} to="#1C3E33" id="logo"/><Icon name="headphones" size={30} color="#C9A259"/></View>
-   <Text style={{color:colors.text,fontSize:34,fontWeight:'700',fontFamily:'Songti SC',letterSpacing:4,marginTop:14}}>听页</Text>
+   <Text style={{color:colors.text,fontSize:34,fontWeight:'700',fontFamily:brand.serif,letterSpacing:4,marginTop:14}}>听页</Text>
    <Text style={{color:colors.muted,fontSize:13,marginTop:6,letterSpacing:1}}>读一页，也听一页</Text>
   </View>
   <View style={[styles.card,{backgroundColor:colors.surface,borderColor:colors.line}]}>
@@ -28,4 +29,4 @@ export default function AccountScreen({colors,onSignedIn}:{colors:ReadingTheme;o
   </View><View style={{flexDirection:'row',justifyContent:'center',alignItems:'center',gap:6}}><Icon name="lock" size={14} color={colors.muted}/><Text style={{color:colors.muted,textAlign:'center',lineHeight:23,fontSize:12}}>本机保存书籍 · 多设备同步进度</Text></View>
  </ScrollView>;
 }
-const styles=StyleSheet.create({page:{flexGrow:1,padding:22,gap:20,justifyContent:'center'},brand:{alignItems:'center'},logo:{width:68,height:68,borderRadius:22,alignItems:'center',justifyContent:'center',overflow:'hidden'},segment:{flexDirection:'row',borderRadius:16,padding:4,borderWidth:StyleSheet.hairlineWidth},segmentItem:{flex:1,height:40,borderRadius:12,alignItems:'center',justifyContent:'center'},card:{width:'100%',maxWidth:460,alignSelf:'center',padding:24,borderWidth:StyleSheet.hairlineWidth,borderRadius:28,gap:18,shadowColor:'#1E2A23',shadowOpacity:.08,shadowRadius:24,shadowOffset:{width:0,height:10}},title:{fontSize:24,fontWeight:'700',fontFamily:'Songti SC'},input:{minHeight:52,borderWidth:1,borderRadius:16,paddingHorizontal:16,paddingVertical:13,fontSize:16},primary:{minHeight:52,borderRadius:26,alignItems:'center',justifyContent:'center'},link:{minHeight:44,justifyContent:'center'},code:{fontSize:16,lineHeight:25,padding:16,borderRadius:12}});
+const styles=StyleSheet.create({page:{flexGrow:1,padding:22,gap:20,justifyContent:'center'},brand:{alignItems:'center'},logo:{width:68,height:68,borderRadius:22,alignItems:'center',justifyContent:'center',overflow:'hidden'},segment:{flexDirection:'row',borderRadius:16,padding:4,borderWidth:StyleSheet.hairlineWidth},segmentItem:{flex:1,height:40,borderRadius:12,alignItems:'center',justifyContent:'center'},card:{width:'100%',maxWidth:460,alignSelf:'center',padding:24,borderWidth:StyleSheet.hairlineWidth,borderRadius:28,gap:18,shadowColor:'#1E2A23',shadowOpacity:.08,shadowRadius:24,shadowOffset:{width:0,height:10}},title:{fontSize:24,fontWeight:'700',fontFamily:brand.serif},input:{minHeight:52,borderWidth:1,borderRadius:16,paddingHorizontal:16,paddingVertical:13,fontSize:16},primary:{minHeight:52,borderRadius:26,alignItems:'center',justifyContent:'center'},link:{minHeight:44,justifyContent:'center'},code:{fontSize:16,lineHeight:25,padding:16,borderRadius:12}});

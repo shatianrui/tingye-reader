@@ -4,6 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches:
+      - main
       - deploy/tencent-cloud
     paths:
       - apps/ios/**
@@ -82,6 +83,7 @@ jobs:
           (cd "$RUNNER_TEMP/unsigned-ipa" && zip -qry "$GITHUB_WORKSPACE/apps/ios/$file" Payload)
           unzip -tq "$file"
           shasum -a 256 "$file" | tee "$file.sha256"
+          echo "IPA \`$file\`: $(du -h "$file" | cut -f1)" >> "$GITHUB_STEP_SUMMARY"
           {
             echo "version=$version"
             echo "build_number=$build_number"

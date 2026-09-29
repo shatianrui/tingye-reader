@@ -1,13 +1,14 @@
-import React from 'react';
-import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import React, { useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Modal, PanResponder, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { DisplayText as Text } from '../components/DisplayText';
 import Icon, { type IconName } from '../components/Icon';
 import Gradient from '../components/Gradient';
+import { brand } from '../theme/tokens';
 import type { ReadingTheme } from './themes';
 
-const GOLD = '#C9A259';
-const SERIF = 'Songti SC';
+const GOLD = brand.gold;
+const SERIF = brand.serif;
 
 type PlayerState = { active: boolean; paused: boolean; buffering: boolean };
 
@@ -53,27 +54,63 @@ function Tool({ colors, icon, label, active, onPress }: { colors: ReadingTheme; 
   );
 }
 
+/** Chapter scrubber: drag or tap to preview a chapter, release to jump; VoiceOver swipes up/down. */
+function ChapterSlider({ colors, chapter, chapterCount, onSeek, onPrev, onNext }: {
+  colors: ReadingTheme; chapter: number; chapterCount: number;
+  onSeek: (chapter: number) => void; onPrev: () => void; onNext: () => void;
+}) {
+  const eink = colors.eink === true;
+  const [preview, setPreview] = useState<number | null>(null);
+  const width = useRef(0);
+  const last = Math.max(0, chapterCount - 1);
+  const at = (x: number) => (last === 0 || width.current <= 0 ? 0 : Math.round(Math.max(0, Math.min(1, x / width.current)) * last));
+  const latest = useRef({ at, onSeek });
+  latest.current = { at, onSeek };
+  const startX = useRef(0);
+  const responder = useMemo(() => PanResponder.create({
+    onStartShouldSetPanResponder: () => true,
+    onMoveShouldSetPanResponder: () => true,
+    onPanResponderTerminationRequest: () => false,
+    // locationX is only reliable at touch-down; follow the finger with dx afterwards.
+    onPanResponderGrant: e => { startX.current = e.nativeEvent.locationX; setPreview(latest.current.at(startX.current)); },
+    onPanResponderMove: (_, g) => setPreview(latest.current.at(startX.current + g.dx)),
+    onPanResponderRelease: (_, g) => { const target = latest.current.at(startX.current + g.dx); setPreview(null); latest.current.onSeek(target); },
+    onPanResponderTerminate: () => setPreview(null),
+  }), []);
+  const shown = preview ?? chapter;
+  const percent = `${last === 0 ? 100 : Math.round((shown / last) * 100)}%` as const;
+  return (
+    <View style={s.slider}>
+      {preview !== null && <Text style={[s.sliderBubble, { color: colors.text, backgroundColor: colors.surface, borderColor: eink ? colors.text : colors.line }]}>第 {preview + 1} / {chapterCount} 章</Text>}
+      <View accessible accessibilityRole="adjustable" accessibilityLabel="章节进度" accessibilityValue={{ min: 1, max: chapterCount, now: chapter + 1, text: `第 ${chapter + 1} 章，共 ${chapterCount} 章` }}
+        accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
+        onAccessibilityAction={e => (e.nativeEvent.actionName === 'increment' ? onNext() : onPrev())}
+        onLayout={e => { width.current = e.nativeEvent.layout.width; }} hitSlop={{ top: 14, bottom: 14 }} {...responder.panHandlers}
+        style={[s.track, { backgroundColor: eink ? colors.surface : colors.line, borderWidth: eink ? 1 : 0, borderColor: colors.text }]}>
+        <View pointerEvents="none" style={{ width: percent, height: '100%', backgroundColor: eink ? colors.text : colors.accent, borderRadius: 3 }} />
+        <View pointerEvents="none" style={[s.knob, preview !== null && s.knobActive, { left: percent, backgroundColor: colors.surface, borderColor: eink ? colors.text : colors.accent }]} />
+      </View>
+    </View>
+  );
+}
+
 export function ReaderBottomPanel(p: {
   colors: ReadingTheme; left: number; right: number; compact: boolean;
   chapter: number; chapterCount: number; pageIndex: number; pageCount: number; rate: number; player: PlayerState;
-  onPrevChapter: () => void; onNextChapter: () => void; onPrevPage: () => void; onNextPage: () => void;
+  onPrevChapter: () => void; onNextChapter: () => void; onSeekChapter: (chapter: number) => void; onPrevPage: () => void; onNextPage: () => void;
   onPlay: () => void; onOpenPlayer: () => void; onRate: () => void;
   onToc: () => void; onNight: () => void; onType: () => void; onEink: () => void; onMore: () => void;
 }) {
   const { colors } = p;
   const eink = colors.eink === true;
   const playing = p.player.active && !p.player.paused;
-  const progress = p.chapterCount > 1 ? p.chapter / (p.chapterCount - 1) : 1;
   const cardText = eink ? colors.text : '#FFFFFF';
   return (
     <View testID="reader-bottom-toolbar" style={[s.bottom, { left: p.left, right: p.right, backgroundColor: colors.background, paddingHorizontal: p.compact ? 12 : 20,
       borderTopColor: eink ? colors.text : colors.line, borderTopWidth: eink ? 1.5 : StyleSheet.hairlineWidth, borderTopLeftRadius: eink ? 0 : 28, borderTopRightRadius: eink ? 0 : 28 }, !eink && s.shadow]}>
       <View style={s.chapterRow}>
         <Pressable accessibilityRole="button" accessibilityLabel="上一章" onPress={p.onPrevChapter} hitSlop={8}><Text style={{ color: colors.text, fontSize: 13, fontWeight: '600' }}>上一章</Text></Pressable>
-        <View style={[s.track, { backgroundColor: eink ? colors.surface : colors.line, borderWidth: eink ? 1 : 0, borderColor: colors.text }]}>
-          <View style={{ width: `${Math.round(progress * 100)}%`, height: '100%', backgroundColor: eink ? colors.text : colors.accent, borderRadius: 3 }} />
-          <View style={[s.knob, { left: `${Math.round(progress * 100)}%`, backgroundColor: colors.surface, borderColor: eink ? colors.text : colors.accent }]} />
-        </View>
+        <ChapterSlider colors={colors} chapter={p.chapter} chapterCount={p.chapterCount} onSeek={p.onSeekChapter} onPrev={p.onPrevChapter} onNext={p.onNextChapter} />
         <Pressable accessibilityRole="button" accessibilityLabel="下一章" onPress={p.onNextChapter} hitSlop={8}><Text style={{ color: colors.text, fontSize: 13, fontWeight: '600' }}>下一章</Text></Pressable>
       </View>
       <View style={s.pageRow}>
@@ -81,22 +118,22 @@ export function ReaderBottomPanel(p: {
         <Text style={{ fontSize: 12, color: colors.muted }}>第 {p.chapter + 1}/{p.chapterCount} 章 · {p.pageIndex + 1}/{p.pageCount} 页</Text>
         <Pressable accessibilityRole="button" accessibilityLabel="下一页" onPress={p.onNextPage} hitSlop={8} style={s.pageBtn}><Text style={{ color: colors.muted, fontSize: 12 }}>下一页</Text><Icon name="chev" size={16} color={colors.muted} /></Pressable>
       </View>
-      <Pressable accessibilityRole="button" accessibilityLabel="打开听书播放器" onPress={p.onOpenPlayer}
-        style={[s.listenCard, { borderRadius: eink ? 6 : 22, backgroundColor: eink ? colors.surface : colors.accent, borderWidth: eink ? 1.5 : 0, borderColor: colors.text }]}>
-        {!eink && !colors.dark && <Gradient from={colors.accent} to="#1C3E33" id="listen" />}
-        <View style={{ flex: 1 }}>
+      {/* Sibling buttons, not nested: VoiceOver cannot focus a button inside another button. */}
+      <View style={[s.listenCard, { borderRadius: eink ? 6 : 22, backgroundColor: eink ? colors.surface : colors.accent, borderWidth: eink ? 1.5 : 0, borderColor: colors.text }]}>
+        {!eink && !colors.dark && <Gradient from={colors.accent} to={brand.deep} id="listen" />}
+        <Pressable accessibilityRole="button" accessibilityLabel="打开听书播放器" onPress={p.onOpenPlayer} style={({ pressed }) => [s.listenOpen, pressed && { opacity: 0.7 }]}>
           <Text style={{ color: cardText, fontSize: 15, fontWeight: '700', fontFamily: SERIF }}>{playing ? '正在朗读' : p.player.active ? '已暂停' : '从本句开始听'}</Text>
           <Text style={{ color: cardText, opacity: 0.75, fontSize: 11, marginTop: 3 }}>{p.player.buffering && playing ? '正在准备声音…' : '整句高亮 · 自动翻页跟读'}</Text>
-        </View>
-        <Pressable accessibilityRole="button" accessibilityLabel="朗读语速" onPress={p.onRate} hitSlop={6}
+        </Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel={`朗读语速 ${p.rate} 倍`} onPress={p.onRate} hitSlop={6}
           style={[s.rate, { borderColor: eink ? colors.text : 'rgba(255,255,255,0.45)', borderRadius: eink ? 4 : 14 }]}>
           <Text style={{ color: cardText, fontSize: 12, fontWeight: '700' }}>{p.rate}×</Text>
         </Pressable>
         <Pressable accessibilityRole="button" accessibilityLabel={playing ? '暂停朗读' : '开始朗读'} onPress={p.onPlay}
           style={[s.cardPlay, { backgroundColor: eink ? colors.text : GOLD, borderRadius: eink ? 6 : 24 }]}>
-          {p.player.buffering && playing ? <ActivityIndicator color={eink ? colors.surface : '#1E2A23'} /> : <Icon name={playing ? 'pause' : 'play'} size={22} color={eink ? colors.surface : '#1E2A23'} />}
+          {p.player.buffering && playing ? <ActivityIndicator color={eink ? colors.surface : brand.ink} /> : <Icon name={playing ? 'pause' : 'play'} size={22} color={eink ? colors.surface : brand.ink} />}
         </Pressable>
-      </Pressable>
+      </View>
       <View style={s.tools}>
         <Tool colors={colors} icon="list" label="目录" onPress={p.onToc} />
         <Tool colors={colors} icon={colors.dark ? 'sun' : 'moon'} label={colors.dark ? '日间' : '夜间'} onPress={p.onNight} />
@@ -119,6 +156,24 @@ export function ListenFab({ colors, player, onPress, onLongPress }: { colors: Re
   );
 }
 
+// Defined at module scope so each sentence advance re-renders, not remounts, the controls.
+function PlayerChip({ icon, label, onPress, fg, eink, line }: { icon: IconName; label: string; onPress: () => void; fg: string; eink: boolean; line: string }) {
+  return (
+    <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress}
+      style={({ pressed }) => [s.chip, { borderColor: eink ? line : 'rgba(246,243,234,0.28)', borderRadius: eink ? 4 : 18, borderWidth: eink ? 1.5 : 1 }, pressed && { opacity: 0.6 }]}>
+      <Icon name={icon} size={16} color={fg} /><Text numberOfLines={1} style={{ color: fg, fontSize: 12, fontWeight: '600', maxWidth: 110 }}>{label}</Text>
+    </Pressable>
+  );
+}
+
+function PlayerControl({ icon, label, onPress, fg }: { icon: IconName; label: string; onPress: () => void; fg: string }) {
+  return (
+    <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} hitSlop={8} style={({ pressed }) => [s.ctl, pressed && { opacity: 0.5 }]}>
+      <Icon name={icon} size={26} color={fg} />
+    </Pressable>
+  );
+}
+
 export function PlayerSheet(p: {
   visible: boolean; colors: ReadingTheme; title: string; author?: string; chapterTitle?: string;
   sentences: string[]; position: number; rate: number; voiceLabel: string; player: PlayerState;
@@ -127,30 +182,20 @@ export function PlayerSheet(p: {
 }) {
   const { colors } = p;
   const eink = colors.eink === true;
-  const fg = eink ? colors.text : '#F6F3EA';
+  const fg = eink ? colors.text : brand.onBrand;
   const sub = eink ? colors.muted : 'rgba(246,243,234,0.62)';
   const playing = p.player.active && !p.player.paused;
   const total = Math.max(1, p.sentences.length);
   const current = Math.max(0, Math.min(p.position, total - 1));
   const from = Math.max(0, current - 1);
   const excerpt = p.sentences.slice(from, from + 4);
-  const Chip = ({ icon, label, onPress }: { icon: IconName; label: string; onPress: () => void }) => (
-    <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress}
-      style={({ pressed }) => [s.chip, { borderColor: eink ? colors.text : 'rgba(246,243,234,0.28)', borderRadius: eink ? 4 : 18, borderWidth: eink ? 1.5 : 1 }, pressed && { opacity: 0.6 }]}>
-      <Icon name={icon} size={16} color={fg} /><Text numberOfLines={1} style={{ color: fg, fontSize: 12, fontWeight: '600', maxWidth: 110 }}>{label}</Text>
-    </Pressable>
-  );
-  const Ctl = ({ icon, label, onPress }: { icon: IconName; label: string; onPress: () => void }) => (
-    <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} hitSlop={8} style={({ pressed }) => [s.ctl, pressed && { opacity: 0.5 }]}>
-      <Icon name={icon} size={26} color={fg} />
-    </Pressable>
-  );
+  const chip = { fg, eink, line: colors.text };
   return (
     <Modal visible={p.visible} animationType="slide" presentationStyle="fullScreen" onRequestClose={p.onClose} onDismiss={p.onDismiss}
       supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}>
       <SafeAreaProvider>
-        <View style={{ flex: 1, backgroundColor: eink ? colors.background : '#1C3E33' }}>
-          {!eink && <Gradient from="#2B5C4B" to="#0F241C" id="player" />}
+        <View style={{ flex: 1, backgroundColor: eink ? colors.background : brand.deep }}>
+          {!eink && <Gradient from={brand.green} to={brand.deepest} id="player" />}
           <SafeAreaView edges={['top', 'bottom', 'left', 'right']} style={{ flex: 1 }}>
             <View style={s.playerHead}>
               <Pressable accessibilityRole="button" accessibilityLabel="收起播放器" onPress={p.onClose} hitSlop={8}
@@ -188,19 +233,19 @@ export function PlayerSheet(p: {
                 </View>
               </View>
               <View style={s.controls}>
-                <Ctl icon="prev" label="上一章" onPress={p.onPrevChapter} />
-                <Ctl icon="back" label="上一句" onPress={() => p.onSeek(Math.max(0, current - 1))} />
+                <PlayerControl fg={fg} icon="prev" label="上一章" onPress={p.onPrevChapter} />
+                <PlayerControl fg={fg} icon="back" label="上一句" onPress={() => p.onSeek(Math.max(0, current - 1))} />
                 <Pressable accessibilityRole="button" accessibilityLabel={playing ? '暂停朗读' : '开始朗读'} onPress={p.onPlay}
                   style={({ pressed }) => [s.bigPlay, { backgroundColor: eink ? colors.text : GOLD, borderRadius: eink ? 8 : 36 }, pressed && { opacity: 0.85 }]}>
-                  {p.player.buffering && playing ? <ActivityIndicator color={eink ? colors.surface : '#1E2A23'} /> : <Icon name={playing ? 'pause' : 'play'} size={30} color={eink ? colors.surface : '#1E2A23'} />}
+                  {p.player.buffering && playing ? <ActivityIndicator color={eink ? colors.surface : brand.ink} /> : <Icon name={playing ? 'pause' : 'play'} size={30} color={eink ? colors.surface : brand.ink} />}
                 </Pressable>
-                <Ctl icon="chev" label="下一句" onPress={() => p.onSeek(Math.min(total - 1, current + 1))} />
-                <Ctl icon="next" label="下一章" onPress={p.onNextChapter} />
+                <PlayerControl fg={fg} icon="chev" label="下一句" onPress={() => p.onSeek(Math.min(total - 1, current + 1))} />
+                <PlayerControl fg={fg} icon="next" label="下一章" onPress={p.onNextChapter} />
               </View>
               <View style={s.chips}>
-                <Chip icon="speed" label={`${p.rate}× 语速`} onPress={p.onRate} />
-                <Chip icon="mic" label={p.voiceLabel} onPress={p.onVoice} />
-                <Chip icon="list" label="目录" onPress={p.onToc} />
+                <PlayerChip {...chip} icon="speed" label={`${p.rate}× 语速`} onPress={p.onRate} />
+                <PlayerChip {...chip} icon="mic" label={p.voiceLabel} onPress={p.onVoice} />
+                <PlayerChip {...chip} icon="list" label="目录" onPress={p.onToc} />
               </View>
             </ScrollView>
           </SafeAreaView>
@@ -216,15 +261,19 @@ export function SettingsCard({ colors, children }: { colors: ReadingTheme; child
 }
 
 const s = StyleSheet.create({
-  shadow: { shadowColor: '#1E2A23', shadowOpacity: 0.1, shadowRadius: 18, shadowOffset: { width: 0, height: 4 }, elevation: 6 },
+  shadow: { shadowColor: brand.ink, shadowOpacity: 0.1, shadowRadius: 18, shadowOffset: { width: 0, height: 4 }, elevation: 6 },
   top: { position: 'absolute', top: 0, minHeight: 60, paddingHorizontal: 14, paddingVertical: 8, flexDirection: 'row', alignItems: 'center', gap: 8 },
   bottom: { position: 'absolute', bottom: 0, paddingTop: 14, paddingBottom: 8, gap: 10 },
   chapterRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  track: { flex: 1, height: 5, borderRadius: 3, justifyContent: 'center' },
+  slider: { flex: 1, justifyContent: 'center' },
+  sliderBubble: { position: 'absolute', bottom: 16, alignSelf: 'center', fontSize: 12, fontWeight: '600', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
+  track: { height: 5, borderRadius: 3, justifyContent: 'center' },
   knob: { position: 'absolute', width: 16, height: 16, borderRadius: 8, marginLeft: -8, borderWidth: 2.5 },
+  knobActive: { width: 22, height: 22, borderRadius: 11, marginLeft: -11 },
   pageRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   pageBtn: { flexDirection: 'row', alignItems: 'center', gap: 2, minHeight: 28 },
   listenCard: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingLeft: 16, paddingRight: 10, gap: 10, overflow: 'hidden' },
+  listenOpen: { flex: 1, alignSelf: 'stretch', justifyContent: 'center' },
   rate: { borderWidth: 1, paddingHorizontal: 9, height: 28, alignItems: 'center', justifyContent: 'center' },
   cardPlay: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
   tools: { flexDirection: 'row', justifyContent: 'space-between', paddingTop: 2 },

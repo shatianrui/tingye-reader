@@ -1,45 +1,43 @@
 import {ReaderPanel} from './ReaderPanel';
 import appConfig from '../../app.json';
 import {ReaderButton,ReaderErrorBanner} from './ReaderControls';
-import {ReaderTopBar,ReaderBottomPanel,ListenFab,PlayerSheet,SettingsCard} from './ReaderChrome';
+import {ReaderTopBar,ReaderBottomPanel,ListenFab,PlayerSheet} from './ReaderChrome';
 import Icon from '../components/Icon';
 import {styles} from './reader-styles';
 import { DisplayText as Text } from '../components/DisplayText';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, AppState, BackHandler, FlatList, Linking, Pressable, ScrollView, StyleSheet, TextInput, View, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, Alert, AppState, BackHandler, FlatList, Pressable, ScrollView, StyleSheet, TextInput, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Speech from 'expo-speech';
-import * as SecureStore from 'expo-secure-store';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api, restoreSession, signOut, clearSession, type Session } from './client';
 import AccountScreen from './AccountScreen';
 import CloudConnection from './CloudConnection';
 import RootNavigator from '../navigation/RootNavigator';
 import {LibraryUIContext,presentLibrary,useReadingMetrics} from './library-ui';
 import {useAppTheme} from '../theme/useAppTheme';
+import {brand} from '../theme/tokens';
 import {nativeLibrary} from './native-library';
 import { samples, sentences, type Book } from './books';
 import { parseBook } from './import-book';
 import {needsOriginalRepair} from './book-repair';
-import { defaultVoice, normalizeVoice, voices, type VoiceConfig, type VoiceOption } from './voices';
+import { defaultVoice, voices, type VoiceConfig, type VoiceOption } from './voices';
 import { readerPlayer, usePlayer } from './player';
 import { sentenceRanges } from './pagination';
-import { readingTheme, readingThemes, type ReadingTheme } from './themes';
+import { readingTheme, type ReadingTheme } from './themes';
 import { voiceSourceChanged } from './playback-settings';
 import OriginalReader,{type OriginalReaderHandle,type ReaderPage} from './OriginalReader';
 import {resourcePath} from './original-document';
-import ReadingTypographySettings from './ReadingTypographySettings';
+import ReadingAppearancePanel from './ReadingAppearancePanel';
+import {useReaderPreferences} from './use-reader-preferences';
 import {useReaderFonts} from './reader-fonts';
-import {defaultTypography,normalizeTypography,type Typography} from './typesetting';
+import {defaultTypography} from './typesetting';
 
 import {readerServices, type ReaderServices} from './reader-services';
 import {createReadingProgress} from './reading-progress';
 import {adaptiveReaderLayout} from './reader-layout';
 
-type Preferences = { fontSize:number; theme:string; voice:VoiceConfig;typography:Typography;originalLayout:boolean;spreadMode:'auto'|'single' };
-const initial:Preferences = {fontSize:22,theme:'paper',voice:defaultVoice,typography:defaultTypography,originalLayout:true,spreadMode:'auto'};
 const errorText=(e:unknown)=>e instanceof Error?e.message:'操作失败，请重试。';
 
 export default function ReaderApplication({services=readerServices}:{services?:ReaderServices}={}){
@@ -47,7 +45,8 @@ export default function ReaderApplication({services=readerServices}:{services?:R
  const insets=useSafeAreaInsets(),width=windowWidth-insets.left-insets.right;
  const [identity,setIdentity]=useState<Session['user']|null>(null),[initializing,setInitializing]=useState(true),[busy,setBusy]=useState(false),[notice,setNotice]=useState('');
  const [books,setBooks]=useState<Book[]>(samples),[book,setBook]=useState<Book|null>(null),[savedChapter,setChapter]=useState(0),[savedPosition,setPosition]=useState(0);
- const [prefs,setPrefs]=useState(initial),[panel,setPanel]=useState<'settings'|'type'|'toc'|'rate'|null>(null),[playerOpen,setPlayerOpen]=useState(false),[voiceList,setVoiceList]=useState<Speech.Voice[]>([]),[miniVoices,setMiniVoices]=useState<VoiceOption[]>([]),[voicesBusy,setVoicesBusy]=useState(false),[voiceNotice,setVoiceNotice]=useState('');
+ const {prefs,setPrefs,loadPreferences,markPreferencesReady}=useReaderPreferences();
+ const [panel,setPanel]=useState<'settings'|'type'|'toc'|'rate'|null>(null),[playerOpen,setPlayerOpen]=useState(false),[voiceList,setVoiceList]=useState<Speech.Voice[]>([]),[miniVoices,setMiniVoices]=useState<VoiceOption[]>([]),[voicesBusy,setVoicesBusy]=useState(false),[voiceNotice,setVoiceNotice]=useState('');
  const [pageStart,setPageStart]=useState(0),[pageEnds,setPageEnds]=useState<number[]>([]),[pageHeight,setPageHeight]=useState(0),[pageWidth,setPageWidth]=useState(0);
  const [controlsVisible,setControlsVisible]=useState(false);
  const [repairRevision,setRepairRevision]=useState(0);
@@ -63,7 +62,6 @@ export default function ReaderApplication({services=readerServices}:{services?:R
  const latest=useRef({book,chapter,position});latest.current={book,chapter,position};
  const pendingProgress=useRef<ReturnType<typeof setTimeout>|null>(null),progressQueue=useRef(Promise.resolve());
  const readingProgress=useRef(createReadingProgress());
- const prefsReady=useRef(false);
  const library=useRef<ReturnType<typeof nativeLibrary>|null>(null);
  const chrome=useAppTheme();
  const metrics=useReadingMetrics(identity?.userId,!!book);
@@ -82,17 +80,16 @@ export default function ReaderApplication({services=readerServices}:{services?:R
  useEffect(()=>{
    let disposed=false;
    const initialization=(async()=>{try{
-     const stored=await AsyncStorage.getItem('tingye.native.preferences.v1');if(stored){const p=JSON.parse(stored);setPrefs({...initial,...p,theme:readingTheme(p.theme,p.night===true).id,fontSize:Math.max(16,Math.min(30,Number(p.fontSize)||22)),voice:normalizeVoice(p.voice),typography:normalizeTypography(p.typography)});}
+     await loadPreferences();
      const saved=await services.restore();if(saved){library.current=services.library(saved.user.userId);setIdentity(saved.user);setBooks(await library.current.list());
       try{const verified=await services.verify();if(!verified.user){await clearSession();library.current=null;setIdentity(null);setBooks(samples);setNotice('登录已过期，请重新登录。');}else void reload();}catch{setNotice('云端暂时不可用，已下载书籍可继续阅读。');}
      }
-   }catch(e){setNotice(errorText(e));}finally{prefsReady.current=true;setInitializing(false);}})();
+   }catch(e){setNotice(errorText(e));}finally{markPreferencesReady();setInitializing(false);}})();
    void Speech.getAvailableVoicesAsync().then(setVoiceList).catch(()=>{});
    const sub=AppState.addEventListener('change',state=>{if(state!=='active')save();else void library.current?.flush();});
    const retry=setInterval(()=>{void library.current?.flush();},30000);
    return()=>{disposed=true;clearInterval(retry);sub.remove();readerPlayer.stop();if(pendingProgress.current)clearTimeout(pendingProgress.current);save();};
- },[reload,save]);
- useEffect(()=>{if(prefsReady.current)void AsyncStorage.setItem('tingye.native.preferences.v1',JSON.stringify(prefs)).catch(()=>{});},[prefs]);
+ },[reload,save,loadPreferences,markPreferencesReady]);
  // Throttle rather than debounce: rapid sentence boundaries must not postpone
  // persistence forever. save() reads the latest cursor when the timer fires.
  useEffect(()=>{if(!book||pendingProgress.current)return;pendingProgress.current=setTimeout(()=>{pendingProgress.current=null;save();},800);},[book,chapter,position,save]);
@@ -193,7 +190,8 @@ export default function ReaderApplication({services=readerServices}:{services?:R
    });
    return()=>handler.remove();
  },[panel,controlsVisible,book,save,closePanel]);
- if(initializing)return <SafeAreaView style={[styles.page,{backgroundColor:colors.background}]}><ActivityIndicator style={{flex:1}} color={colors.accent}/></SafeAreaView>;
+ // Serif headings use the bundled ReaderSerif face; iOS lays out text once, so wait for registration.
+ if(initializing||(!fontsReady&&!fontError))return <SafeAreaView style={[styles.page,{backgroundColor:colors.background}]}><ActivityIndicator style={{flex:1}} color={colors.accent}/></SafeAreaView>;
  return <SafeAreaView edges={identity&&!book?['left','right']:['top','bottom','left','right']} style={[styles.page,{backgroundColor:book?colors.surface:chrome.colors.background}]}><StatusBar style={(book?colors.dark:chrome.scheme==='dark')?'light':'dark'}/>
   {!book&&!identity&&<View style={[styles.header,{borderBottomColor:colors.line}]}>
    {book?<Pressable accessibilityRole="button" accessibilityLabel="返回书架" onPress={()=>{returnToShelf();}} style={styles.iconButton}><Text style={{fontSize:32,color:colors.text}}>‹</Text></Pressable>:<Text style={{fontSize:16,fontWeight:'700',color:colors.accent}}>听页</Text>}
@@ -210,7 +208,7 @@ export default function ReaderApplication({services=readerServices}:{services?:R
   {identity&&book&&<View style={[styles.reader,{backgroundColor:colors.surface}]} testID="immersive-reader">
     <View style={[styles.readingHeading,{height:layout.desktop?52:layout.compactHeight?24:34,width:layout.contentWidth,alignSelf:'center',paddingHorizontal:0,flexDirection:'row',alignItems:'center',gap:8}]}>
       {layout.desktop&&<ReaderButton colors={colors} label="书架" onPress={returnToShelf}/>}
-      <Text numberOfLines={1} style={{flex:1,fontSize:13,color:colors.muted,fontWeight:'600',fontFamily:'Songti SC',letterSpacing:.5}}>{currentChapter?.title}</Text>
+      <Text numberOfLines={1} style={{flex:1,fontSize:13,color:colors.muted,fontWeight:'600',fontFamily:brand.serif,letterSpacing:.5}}>{currentChapter?.title}</Text>
       {layout.desktop&&<><ReaderButton colors={colors} label="目录" onPress={()=>setPanel('toc')}/><ReaderButton colors={colors} label="阅读设置" onPress={openSettings}/></>}
     </View>
     {needsOriginalRepair(book)&&<Pressable accessibilityRole="button" onPress={()=>{void repairBook(book);}} style={{paddingHorizontal:18,paddingVertical:8,backgroundColor:colors.highlight}}><Text style={{color:colors.text,fontSize:13}}>这是旧版纯文字副本 · 点此重新导入原书图片、排版与封面</Text></Pressable>}
@@ -229,7 +227,7 @@ export default function ReaderApplication({services=readerServices}:{services?:R
       <ReaderTopBar colors={colors} title={book.title} subtitle={currentChapter?.title} left={(width-layout.controlsWidth)/2} right={(width-layout.controlsWidth)/2} onBack={returnToShelf} onListen={openPlayer} onMore={openSettings}/>
       <ReaderBottomPanel colors={colors} left={(width-layout.controlsWidth)/2} right={(width-layout.controlsWidth)/2} compact={width<360}
         chapter={chapter} chapterCount={book.chapters.length} pageIndex={pageIndex} pageCount={readerPage.count} rate={prefs.voice.rate} player={player}
-        onPrevChapter={()=>crossChapter(-1)} onNextChapter={()=>crossChapter(1)} onPrevPage={()=>turn(-1)} onNextPage={()=>turn(1)}
+        onPrevChapter={()=>crossChapter(-1)} onNextChapter={()=>crossChapter(1)} onSeekChapter={ci=>{if(ci!==chapter)jump(ci);}} onPrevPage={()=>turn(-1)} onNextPage={()=>turn(1)}
         onPlay={play} onOpenPlayer={openPlayer} onRate={()=>{setDraftVoice({...prefs.voice});setPanel('rate');}}
         onToc={()=>setPanel('toc')} onNight={()=>setPrefs(p=>({...p,theme:colors.dark?'paper':'ink'}))} onType={()=>setPanel('type')} onEink={toggleEink} onMore={openSettings}/>
     </>}
@@ -242,32 +240,7 @@ export default function ReaderApplication({services=readerServices}:{services?:R
       onVoice={()=>afterPlayer(openSettings)} onToc={()=>afterPlayer(()=>setPanel('toc'))}/>
   </View>}
   <ReaderPanel visible={!!panel} title={panel==='toc'?'目录':panel==='rate'?'朗读语速':panel==='type'?'阅读设置':'听书与更多设置'} colors={colors} width={width} wide={layout.widePanel} panelWidth={layout.panelWidth} onClose={closePanel}>
-    {panel==='rate'?<ScrollView contentContainerStyle={{padding:24,gap:20}}><Text style={{color:colors.text,fontSize:18}}>当前语速 {prefs.voice.rate}×</Text><View style={styles.chips}>{[.5,.75,1,1.25,1.5,1.75,2].map(rate=><ReaderButton colors={colors} key={rate} label={rate+'×'} primary={prefs.voice.rate===rate} onPress={()=>changeRate(rate)}/>)}</View><Text style={{color:colors.muted}}>调整后立即应用；本地语音从当前词语继续朗读。</Text></ScrollView>:panel==='toc'?<FlatList data={book?.chapters} keyExtractor={(_,i)=>String(i)} renderItem={({item,index})=><Pressable accessibilityRole="button" onPress={()=>jump(index)} style={[styles.tocRow,{borderBottomColor:colors.line,backgroundColor:chapter===index?colors.highlight:undefined,flexDirection:'row',alignItems:'center',gap:12}]}><Text style={{color:chapter===index?colors.accent:colors.muted,fontSize:13,minWidth:28}}>{index+1}</Text><Text numberOfLines={2} style={{flex:1,color:colors.text,fontSize:16,fontFamily:'Songti SC',fontWeight:chapter===index?'700':'400'}}>{item.title}</Text>{chapter===index&&<Icon name="headphones" size={16} color={colors.accent}/>}</Pressable>}/>:panel==='type'?<ScrollView contentContainerStyle={{padding:20,gap:16}}>
-     <SettingsCard colors={colors}>
-      <View style={{flexDirection:'row',alignItems:'center',justifyContent:'space-between'}}><Text style={[styles.label,{color:colors.text}]}>字号</Text><Text style={{color:colors.muted,fontSize:13}}>{prefs.fontSize}</Text></View>
-      <View style={{flexDirection:'row',alignItems:'center',gap:12}}>
-       <Pressable accessibilityRole="button" accessibilityLabel="减小字号" onPress={()=>setPrefs(p=>({...p,originalLayout:false,fontSize:Math.max(16,p.fontSize-2)}))} style={[styles.fontStep,{borderColor:colors.eink?colors.text:colors.line,borderRadius:colors.eink?4:18}]}><Text style={{color:colors.text,fontSize:14,fontFamily:'Songti SC'}}>A</Text></Pressable>
-       <View style={{flex:1,height:4,borderRadius:2,backgroundColor:colors.line}}><View style={{width:`${Math.round((prefs.fontSize-16)/14*100)}%`,height:'100%',borderRadius:2,backgroundColor:colors.eink?colors.text:colors.accent}}/></View>
-       <Pressable accessibilityRole="button" accessibilityLabel="增大字号" onPress={()=>setPrefs(p=>({...p,originalLayout:false,fontSize:Math.min(30,p.fontSize+2)}))} style={[styles.fontStep,{borderColor:colors.eink?colors.text:colors.line,borderRadius:colors.eink?4:18}]}><Text style={{color:colors.text,fontSize:22,fontFamily:'Songti SC'}}>A</Text></Pressable>
-      </View>
-     </SettingsCard>
-     <SettingsCard colors={colors}>
-      <Text style={[styles.label,{color:colors.text}]}>阅读背景</Text>
-      <View style={{flexDirection:'row',flexWrap:'wrap',gap:14}}>{readingThemes.map(theme=><Pressable key={theme.id} accessibilityRole="button" accessibilityLabel={theme.name} accessibilityState={{selected:prefs.theme===theme.id}} onPress={()=>chooseReadingTheme(theme)} style={{alignItems:'center',gap:6,width:52}}>
-       <View style={[styles.swatch,{backgroundColor:theme.surface,borderColor:prefs.theme===theme.id?(colors.eink?colors.text:colors.accent):theme.line,borderWidth:prefs.theme===theme.id?2.5:1,borderRadius:theme.eink?8:22}]}>{prefs.theme===theme.id?<Icon name="check" size={18} color={theme.text} strokeWidth={2.4}/>:<Text style={{color:theme.text,fontSize:15,fontFamily:'Songti SC'}}>文</Text>}</View>
-       <Text numberOfLines={1} style={{fontSize:11,color:prefs.theme===theme.id?colors.text:colors.muted}}>{theme.name}</Text></Pressable>)}</View>
-     </SettingsCard>
-     <Pressable accessibilityRole="switch" accessibilityState={{checked:!!colors.eink}} onPress={toggleEink} style={[styles.einkCard,{backgroundColor:colors.eink?colors.surface:colors.highlight+'55',borderColor:colors.eink?colors.text:colors.line,borderWidth:colors.eink?1.5:StyleSheet.hairlineWidth,borderRadius:colors.eink?4:20}]}>
-      <View style={[styles.einkIcon,{borderColor:colors.text,borderRadius:colors.eink?4:14}]}><Icon name="eink" size={24} color={colors.text}/></View>
-      <View style={{flex:1}}><Text style={{color:colors.text,fontSize:16,fontWeight:'700',fontFamily:'Songti SC'}}>电纸书模式</Text><Text style={{color:colors.muted,fontSize:12,lineHeight:18,marginTop:4}}>高对比灰阶 · 衬线字体 · 单页留白 · 无动画，接近 Kindle 电子墨水屏。</Text></View>
-      <View style={[styles.toggle,{backgroundColor:colors.eink?colors.text:colors.line,borderRadius:colors.eink?4:14}]}><View style={[styles.toggleKnob,{backgroundColor:colors.surface,alignSelf:colors.eink?'flex-end':'flex-start',borderRadius:colors.eink?2:11}]}/></View>
-     </Pressable>
-     <SettingsCard colors={colors}>
-      <Text style={[styles.label,{color:colors.text}]}>书籍排版</Text><View style={styles.chips}><ReaderButton colors={colors} label="原书图文" primary={prefs.originalLayout} onPress={()=>setPrefs(p=>({...p,originalLayout:true}))}/><ReaderButton colors={colors} label="自定义阅读" primary={!prefs.originalLayout} onPress={()=>setPrefs(p=>({...p,originalLayout:false}))}/></View><Text style={{color:colors.muted,fontSize:12,lineHeight:18}}>原书图文保留 EPUB 样式、图片和表格；自定义阅读应用下方字体、行距。PDF 保留原始页面，可双指缩放。</Text>
-      <Text style={[styles.label,{color:colors.text}]}>展开阅读</Text><View style={styles.chips}><ReaderButton colors={colors} label="自动双页" primary={prefs.spreadMode!=='single'} onPress={()=>setPrefs(p=>({...p,spreadMode:'auto'}))}/><ReaderButton colors={colors} label="始终单页" primary={prefs.spreadMode==='single'} onPress={()=>setPrefs(p=>({...p,spreadMode:'single'}))}/></View>
-     </SettingsCard>
-     <ReadingTypographySettings value={prefs.typography} onChange={typography=>setPrefs(p=>({...p,typography,originalLayout:false}))} colors={colors} fontSize={prefs.fontSize} fontsReady={!!fontsReady}/>
-    </ScrollView>:<ScrollView contentContainerStyle={{padding:24,gap:20}} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" automaticallyAdjustKeyboardInsets>
+    {panel==='rate'?<ScrollView contentContainerStyle={{padding:24,gap:20}}><Text style={{color:colors.text,fontSize:18}}>当前语速 {prefs.voice.rate}×</Text><View style={styles.chips}>{[.5,.75,1,1.25,1.5,1.75,2].map(rate=><ReaderButton colors={colors} key={rate} label={rate+'×'} primary={prefs.voice.rate===rate} onPress={()=>changeRate(rate)}/>)}</View><Text style={{color:colors.muted}}>调整后立即应用；本地语音从当前词语继续朗读。</Text></ScrollView>:panel==='toc'?<FlatList data={book?.chapters} keyExtractor={(_,i)=>String(i)} renderItem={({item,index})=><Pressable accessibilityRole="button" onPress={()=>jump(index)} style={[styles.tocRow,{borderBottomColor:colors.line,backgroundColor:chapter===index?colors.highlight:undefined,flexDirection:'row',alignItems:'center',gap:12}]}><Text style={{color:chapter===index?colors.accent:colors.muted,fontSize:13,minWidth:28}}>{index+1}</Text><Text numberOfLines={2} style={{flex:1,color:colors.text,fontSize:16,fontFamily:brand.serif,fontWeight:chapter===index?'700':'400'}}>{item.title}</Text>{chapter===index&&<Icon name="headphones" size={16} color={colors.accent}/>}</Pressable>}/>:panel==='type'?<ReadingAppearancePanel prefs={prefs} setPrefs={setPrefs} colors={colors} fontsReady={!!fontsReady} onChooseTheme={chooseReadingTheme} onToggleEink={toggleEink}/>:<ScrollView contentContainerStyle={{padding:24,gap:20}} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" automaticallyAdjustKeyboardInsets>
      {player.active&&<View style={[styles.settingsPlayback,{borderColor:colors.line,backgroundColor:colors.surface}]}><View style={{flex:1}}><Text style={{color:colors.text,fontWeight:'600'}}>{player.paused?'已暂停':player.buffering?'正在准备声音…':'听书继续播放中'}</Text><Text style={{color:colors.muted,fontSize:12,marginTop:6}}>调整字号和背景不会中断声音</Text></View><ReaderButton colors={colors} label={player.paused?'继续':'暂停'} onPress={()=>readerPlayer.togglePause()}/></View>}
      <Pressable accessibilityRole="button" onPress={()=>{if(applyDraftVoice())setPanel('type');}} style={[styles.settingsPlayback,{borderColor:colors.eink?colors.text:colors.line,borderWidth:colors.eink?1.5:1,backgroundColor:colors.surface}]}><Icon name="type" size={22} color={colors.text}/><View style={{flex:1}}><Text style={{color:colors.text,fontWeight:'600'}}>阅读外观与排版</Text><Text style={{color:colors.muted,fontSize:12,marginTop:4}}>字号 · 背景 · 电纸书模式 · 字体行距</Text></View><Icon name="chev" size={18} color={colors.muted}/></Pressable>
      <Text style={[styles.label,{color:colors.muted}]}>语速</Text><View style={styles.chips}>{[.5,.75,1,1.25,1.5,1.75,2].map(rate=><ReaderButton colors={colors} key={rate} label={rate+'×'} primary={prefs.voice.rate===rate} onPress={()=>changeRate(rate)}/>)}</View>
