@@ -3,7 +3,7 @@ import {db} from "@/lib/db";
 import {dailyCharacterLimit,reserveTtsBudget,TtsQuotaError} from "@/lib/tts-quota";
 export const runtime="nodejs";
 export const maxDuration=60;
-import { minimaxAudio } from "@/lib/minimax";
+import { minimaxAudio, minimaxAudioUrl } from "@/lib/minimax";
 import { readGlmWav } from "@/lib/glm-audio";
 import { requestUser } from "@/lib/mobile-auth";
 
@@ -17,7 +17,7 @@ export async function GET(req:Request) {
 }
 export async function POST(req:Request) {
   const user=await requestUser(req);if (!user) return Response.json({error:"请先登录后使用语音服务。"},{status:401});
-  if(req.headers.get("origin")&&req.headers.get("origin")!==new URL(req.url).origin) return Response.json({error:"请求来源不受支持。"},{status:403});
+  if(req.headers.get("origin")&&req.headers.get("origin")!==new URL(process.env.APP_ORIGIN||req.url).origin) return Response.json({error:"请求来源不受支持。"},{status:403});
   let refund: (()=>Promise<void>) | undefined;
   let synthesized=false;
   try {
@@ -34,7 +34,7 @@ export async function POST(req:Request) {
     refund=await reserveTtsBudget(db(),'tts:'+user.userId,dailyCharacterLimit(env.TTS_DAILY_CHARACTERS),86400,input.length,'daily');
     if(provider==='minimax'){
       if(typeof body.voice!=='string'||!body.voice.trim()||body.voice.length>200)return Response.json({error:'请选择 MiniMax 音色。'},{status:400});
-      try{const audio=await minimaxAudio(input,body.voice,body.timing===true);synthesized=true;return audio;}catch(error){return Response.json({error:error instanceof Error?error.message:'MiniMax 请求失败。'},{status:502});}
+      try{const timing=body.timing===true;const audio=(body.delivery==='url'?await minimaxAudioUrl(input,body.voice,timing):undefined)??await minimaxAudio(input,body.voice,timing);synthesized=true;return audio;}catch(error){return Response.json({error:error instanceof Error?error.message:'MiniMax 请求失败。'},{status:502});}
     }
     // Credentials and model remain server-owned; the selected voice is user-controlled.
     const glm=provider==="glm";

@@ -26,7 +26,7 @@ export function ReaderPanel({ visible, title, colors, width, panelWidth, wide, o
         <SafeAreaView edges={['top', 'bottom', 'left', 'right']} testID="reader-settings-panel"
           accessibilityViewIsModal style={{ flex: 1, width: wide ? panelWidth : '100%', backgroundColor: colors.background }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', padding: 20, gap: 12 }}>
-            <Text accessibilityRole="header" style={{ flex: 1, fontSize: width < 360 ? 19 : 23, fontWeight: '600', color: colors.text }}>{title}</Text>
+            <Text accessibilityRole="header" style={{ flex: 1, fontSize: width < 360 ? 19 : 23, fontWeight: '700', fontFamily: 'Songti SC', color: colors.text }}>{title}</Text>
             <ReaderButton colors={colors} label="完成" onPress={onClose}/>
           </View>
           {children}

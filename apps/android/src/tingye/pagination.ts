@@ -35,14 +35,21 @@ export function speechSegments(text: string, startOffset = 0) {
   });
 }
 
+// Cloud synthesis latency grows with clip length (a 400-character GLM clip took
+// ~36 s against a 45 s timeout). Cloud playback uses shorter clips and a short
+// opening clip so audio starts quickly; system speech keeps whole paragraphs.
+export const CLOUD_GROUP_CHARS=160;
+export const CLOUD_FIRST_GROUP_CHARS=60;
+
 // Preserve the book's sentence IDs while giving TTS the context of a paragraph.
 // Page geometry never participates in narration boundaries.
-export function narrationGroups(text: string, startOffset = 0, position = 0) {
+export function narrationGroups(text: string, startOffset = 0, position = 0, maxChars = 400, firstMaxChars = maxChars) {
   type Segment = ReturnType<typeof speechSegments>[number];
   const groups: (Segment & { anchors: Segment[] })[] = [];
   for (const segment of speechSegments(text, startOffset).filter(s=>s.position>=position)) {
     const previous = groups.at(-1);
-    if (previous && segment.end-previous.start<=400 && !/[\r\n]/.test(text.slice(previous.end,segment.start))) {
+    const limit = groups.length===1 ? firstMaxChars : maxChars;
+    if (previous && segment.end-previous.start<=limit && !/[\r\n]/.test(text.slice(previous.end,segment.start))) {
       previous.end=segment.end;
       previous.text=text.slice(previous.start,previous.end);
       previous.anchors.push(segment);

@@ -1,7 +1,7 @@
 const assert=require('node:assert/strict');
 const {harness,tick}=require('./player-queue.cjs');
 const voice={provider:'glm',model:'glm-tts',voice:'tongtong',rate:1};
-const book={id:'glm-blocking',chapters:[{title:'测试',text:['甲乙丙丁。戊己庚辛','下一段仍然继续','最后一段'].map(p=>p+'字'.repeat(60)+'。').join('\n')}]};
+const book={id:'glm-blocking',chapters:[{title:'测试',text:'甲乙丙丁。戊己庚辛。\n下一段仍然继续。\n最后一段。'}]};
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 const deferred=()=>{let resolve;const promise=new Promise(r=>resolve=r);return{promise,resolve};};
 (async()=>{

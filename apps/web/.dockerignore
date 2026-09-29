@@ -1,0 +1,6 @@
+.next
+node_modules
+.env*
+npm-debug.log*
+public/releases/*.apk
+public/releases/*.ipa

@@ -19,10 +19,11 @@ import type { RootStackParamList } from '../navigation/types';
 import {useLibraryUI} from '../tingye/library-ui';
 import type { Book } from '../types/models';
 import BookCover from '../components/BookCover';
-import MaterialAppBar from '../components/MaterialAppBar';
-import MaterialChip from '../components/MaterialChip';
+import ScreenHeader from '../components/ScreenHeader';
+import Gradient from '../components/Gradient';
+import { FLOATING_TAB_BAR_SPACE } from '../components/MaterialNavBar';
 import { useAppTheme } from '../theme/useAppTheme';
-import { spacing as spacingTokens, shape as shapeTokens } from '../theme/tokens';
+import { spacing as spacingTokens, brand } from '../theme/tokens';
 
 interface Props {
   navigation: NativeStackNavigationProp<RootStackParamList>;
@@ -42,7 +43,7 @@ function RankingCard({
     <View
       style={[
         styles.rankingCard,
-        { backgroundColor: theme.colors.surfaceContainerLow },
+        { backgroundColor: theme.colors.surfaceContainerLow, borderColor: theme.colors.outlineVariant },
       ]}
     >
       <Text style={[styles.rankingTitle, { color: theme.colors.onSurface }]}>{title}</Text>
@@ -57,14 +58,14 @@ function RankingCard({
               styles.rankingBadge,
               {
                 backgroundColor:
-                  i === 0 ? theme.colors.primary : theme.colors.surfaceContainerHigh,
+                  i === 0 ? brand.gold : theme.colors.primaryContainer,
               },
             ]}
           >
             <Text
               style={[
                 styles.rankingBadgeText,
-                { color: i === 0 ? theme.colors.onPrimary : theme.colors.onSurfaceVariant },
+                { color: i === 0 ? '#FFFFFF' : theme.colors.primary },
               ]}
             >
               {i + 1}
@@ -165,11 +166,10 @@ export default function DiscoverScreen({ navigation }: Props) {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <MaterialAppBar
+      <ScreenHeader
         title="发现"
-        variant="small"
-        leadingIcon="⌕"
-        onLeadingPress={() => navigation.navigate('Search')}
+        subtitle="从你的书架里挑一本，读或听"
+        actions={[{ icon: 'search', label: '搜索', onPress: () => navigation.navigate('Search') }]}
       />
 
       <FlatList
@@ -196,14 +196,20 @@ export default function DiscoverScreen({ navigation }: Props) {
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.chipScroll}
             >
-              {bookCategories.map((c) => (
-                <MaterialChip
-                  key={c}
-                  label={c}
-                  selected={category === c}
-                  onPress={() => setCategory(c)}
-                />
-              ))}
+              {bookCategories.map((c) => {
+                const on = category === c;
+                return (
+                  <Pressable
+                    key={c}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: on }}
+                    onPress={() => setCategory(c)}
+                    style={[styles.chip, on ? { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary } : { backgroundColor: theme.colors.surfaceContainerLow, borderColor: theme.colors.outlineVariant }]}
+                  >
+                    <Text style={{ color: on ? theme.colors.onPrimary : theme.colors.onSurfaceVariant, fontSize: 13, fontWeight: on ? '700' : '500' }}>{c}</Text>
+                  </Pressable>
+                );
+              })}
             </ScrollView>
 
             <Text
@@ -217,7 +223,7 @@ export default function DiscoverScreen({ navigation }: Props) {
           </View>
         }
         renderItem={({ item }) => <BookListTile book={item} onPress={() => openDetail(item.id)} />}
-        contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
+        contentContainerStyle={{ paddingBottom: insets.bottom + FLOATING_TAB_BAR_SPACE }}
       />
     </View>
   );
@@ -241,33 +247,34 @@ function HeroSlide({
         styles.hero,
         {
           width:Math.max(0,width-spacingTokens.lg*2),
-          backgroundColor: theme.colors.primaryContainer,
+          backgroundColor: brand.deep,
           opacity: pressed ? 0.95 : 1,
         },
       ]}
     >
+      <Gradient from={brand.green} to={brand.deep} id={'hero' + book.id.replace(/[^a-zA-Z0-9]/g, '')} />
       <BookCover book={book} width={84} height={116} />
       <View style={styles.heroInfo}>
         <Text
-          style={[styles.heroOverline, { color: theme.colors.onPrimaryContainer }]}
+          style={[styles.heroOverline, { color: brand.gold }]}
           numberOfLines={1}
         >
-          ✦ 从书架发现
+          今日推荐
         </Text>
         <Text
-          style={[styles.heroTitle, { color: theme.colors.onPrimaryContainer }]}
+          style={[styles.heroTitle, { color: '#FFFFFF' }]}
           numberOfLines={2}
         >
           {book.title}
         </Text>
         <Text
-          style={[styles.heroAuthor, { color: theme.colors.onPrimaryContainer }]}
+          style={[styles.heroAuthor, { color: '#FFFFFF' }]}
           numberOfLines={1}
         >
           {book.author} · {book.category}
         </Text>
         <Text
-          style={[styles.heroIntro, { color: theme.colors.onPrimaryContainer }]}
+          style={[styles.heroIntro, { color: '#FFFFFF' }]}
           numberOfLines={2}
         >
           {book.intro}
@@ -365,7 +372,7 @@ function HeroCarousel({ books, onPress }: { books: Book[]; onPress: (id: string)
                   width: i === active ? 18 : 6,
                   backgroundColor:
                     i === active
-                      ? theme.colors.primary
+                      ? brand.gold
                       : theme.colors.outlineVariant,
                 },
               ]}
@@ -397,8 +404,9 @@ const styles = StyleSheet.create({
   hero: {
     flexDirection: 'row',
     marginHorizontal: spacingTokens.lg,
-    padding: spacingTokens.lg,
-    borderRadius: shapeTokens.extraLarge,
+    padding: spacingTokens.lg + 2,
+    borderRadius: 26,
+    overflow: 'hidden',
   },
   heroInfo: {
     flex: 1,
@@ -408,11 +416,12 @@ const styles = StyleSheet.create({
   heroOverline: {
     fontSize: 11,
     fontWeight: '600',
-    letterSpacing: 0.8,
     textTransform: 'uppercase',
     marginBottom: spacingTokens.xs,
+    letterSpacing: 2,
   },
   heroTitle: {
+    fontFamily: brand.serif,
     fontSize: 20,
     fontWeight: '700',
     lineHeight: 26,
@@ -436,10 +445,12 @@ const styles = StyleSheet.create({
   rankingCard: {
     width: 180,
     padding: spacingTokens.lg,
-    borderRadius: shapeTokens.large,
+    borderRadius: 20,
+    borderWidth: StyleSheet.hairlineWidth,
   },
   rankingTitle: {
-    fontWeight: '600',
+    fontFamily: brand.serif,
+    fontWeight: '700',
     marginBottom: spacingTokens.md,
     fontSize: 15,
   },
@@ -468,10 +479,13 @@ const styles = StyleSheet.create({
   chipScroll: {
     paddingHorizontal: spacingTokens.lg,
     paddingVertical: spacingTokens.sm,
+    gap: 8,
   },
+  chip: { height: 34, paddingHorizontal: 16, borderRadius: 17, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontFamily: brand.serif,
+    fontSize: 19,
+    fontWeight: '700',
     marginTop: spacingTokens.md,
     marginBottom: spacingTokens.sm,
     paddingHorizontal: spacingTokens.lg,
@@ -489,8 +503,9 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
   },
   listTileTitle: {
+    fontFamily: brand.serif,
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   listTileAuthor: {
     fontSize: 12,

@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {Directory,File,Paths} from 'expo-file-system';
 import {fetch} from 'expo/fetch';
-import {api,session} from './client';
+import {api,ORIGIN,session} from './client';
 import {createLibrary,type Entry,validateBook} from './library';
 import {createCoverCache} from './cover-cache';
 export function nativeLibrary(userId:string){
@@ -28,12 +28,12 @@ export function nativeLibrary(userId:string){
    path+=(path.includes('?')?'&':'?')+'_sync='+requestVersion;
    headers.set('Cache-Control','no-cache');headers.set('Pragma','no-cache');
   }
-  const result=await api<T>(path,{...options,headers,...(reading?{cache:'no-store' as const}:{}),signal:options?.signal??AbortSignal.timeout(15000)});
+  const result=await api<T>(path,{...options,headers,...(reading?{cache:'no-store' as const}:{}),signal:options?.signal??AbortSignal.timeout(path.startsWith('/api/backups')?120000:15000)});
   const owner=(result as {account?:{userId?:string}}|null)?.account;
   if(owner&&owner.userId!==userId)throw Error('云端返回的账号与本机书架不一致，请退出后登录同一听页账号。本机书籍不会删除。');
   return result;
  },async(url,options)=>{
-  const parsed=new URL(url);if(parsed.protocol!=='https:'||parsed.hostname!=='cjhiszkujkqgmblxwryw.supabase.co')throw Error('备份地址无效。');
+  const parsed=new URL(url);if(parsed.protocol!=='https:'||parsed.hostname!==new URL(ORIGIN).hostname)throw Error('备份地址无效。');
   // Signed storage URLs need no account bearer token.
   return fetch(url,{...options,redirect:'error',signal:AbortSignal.timeout(120000)});
  });

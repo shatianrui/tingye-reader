@@ -4,7 +4,6 @@ import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'rea
 import { useAppTheme } from '../theme/useAppTheme';
 import { spacing as spacingTokens, shape as shapeTokens } from '../theme/tokens';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { GlyphIcon } from './Icon';
 
 export interface MaterialAppBarProps {
   title: string;
@@ -60,7 +59,7 @@ export default function MaterialAppBar({
             style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}
             hitSlop={8}
           >
-            <GlyphIcon glyph={leadingIcon} size={24} color={theme.colors.onSurface} />
+            <Text style={[styles.iconText, { color: theme.colors.onSurface }]}>{leadingIcon}</Text>
           </Pressable>
         ) : (
           <View style={styles.iconButtonPlaceholder} />
@@ -93,7 +92,7 @@ export default function MaterialAppBar({
             style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}
             hitSlop={8}
           >
-            <GlyphIcon glyph={trailingIcon} size={24} color={theme.colors.onSurface} />
+            <Text style={[styles.iconText, { color: theme.colors.onSurface }]}>{trailingIcon}</Text>
           </Pressable>
         ) : (
           <View style={styles.iconButtonPlaceholder} />
@@ -114,15 +113,19 @@ const styles = StyleSheet.create({
     minHeight: 56,
   },
   iconButton: {
-    width: 44,
-    height: 44,
+    width: 40,
+    height: 40,
     borderRadius: shapeTokens.full,
     alignItems: 'center',
     justifyContent: 'center',
   },
   iconButtonPlaceholder: {
-    width: 44,
-    height: 44,
+    width: 40,
+    height: 40,
+  },
+  iconText: {
+    fontSize: 22,
+    lineHeight: 24,
   },
   titleSlot: {
     flex: 1,

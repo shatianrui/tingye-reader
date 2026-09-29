@@ -1,0 +1,97 @@
+name: Build unsigned iOS IPA
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - deploy/tencent-cloud
+    paths:
+      - apps/ios/**
+      - .github/workflows/ios-ipa.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-ipa-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: macos-15
+    defaults:
+      run:
+        working-directory: apps/ios
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: apps/ios/package-lock.json
+      - name: Select Xcode with Swift 6.2
+        run: |
+          echo "DEVELOPER_DIR=/Applications/Xcode_26.3.app/Contents/Developer" >> "$GITHUB_ENV"
+          DEVELOPER_DIR=/Applications/Xcode_26.3.app/Contents/Developer xcodebuild -version
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run test:reader
+      - run: npm run build:reader
+      - run: npm run prepare:native
+      - name: Apply Xcode 26 JSI compatibility fix
+        run: node tools/patch-jsi-bridging.cjs
+      - name: Generate native Xcode project
+        run: |
+          npx expo prebuild --platform ios --clean --no-install
+          npx pod-install@1.0.9 ios
+      - name: Archive unsigned device app and package IPA
+        id: release
+        shell: bash
+        run: |
+          workspace=$(find ios -maxdepth 1 -name '*.xcworkspace' -print -quit)
+          test -n "$workspace" || { echo "::error::CocoaPods Xcode workspace was not generated"; exit 1; }
+          scheme=$(xcodebuild -workspace "$workspace" -list -json | python3 -c 'import json,sys; print(json.load(sys.stdin)["workspace"]["schemes"][0])')
+          archive="$RUNNER_TEMP/Tingye.xcarchive"
+          xcodebuild archive \
+            -workspace "$workspace" \
+            -scheme "$scheme" \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$archive" \
+            CODE_SIGNING_ALLOWED=NO
+          app=$(find "$archive/Products/Applications" -maxdepth 1 -name '*.app' -print -quit)
+          test -n "$app" || { echo "::error::Device archive contains no app"; exit 1; }
+          info="$app/Info.plist"
+          version=$(node -p "require('./app.json').expo.version")
+          build_number=$(node -p "require('./app.json').expo.ios.buildNumber")
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$info")" = 'com.shatianrui.wereader'
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$info")" = "$version"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$info")" = "$build_number"
+          executable=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$info")
+          lipo -archs "$app/$executable" | grep -qw arm64
+          test ! -e "$app/embedded.mobileprovision"
+          if codesign -dv "$app" >/dev/null 2>&1; then
+            echo "::error::App unexpectedly contains a code signature"
+            exit 1
+          fi
+          payload="$RUNNER_TEMP/unsigned-ipa/Payload"
+          mkdir -p "$payload"
+          cp -R "$app" "$payload/"
+          file="tingye-ios-${version}-build${build_number}-unsigned.ipa"
+          (cd "$RUNNER_TEMP/unsigned-ipa" && zip -qry "$GITHUB_WORKSPACE/apps/ios/$file" Payload)
+          unzip -tq "$file"
+          shasum -a 256 "$file" | tee "$file.sha256"
+          {
+            echo "version=$version"
+            echo "build_number=$build_number"
+            echo "file=$file"
+          } >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tingye-ios-${{ steps.release.outputs.version }}-build${{ steps.release.outputs.build_number }}-unsigned
+          path: |
+            apps/ios/${{ steps.release.outputs.file }}
+            apps/ios/${{ steps.release.outputs.file }}.sha256
+          if-no-files-found: error
+          retention-days: 30

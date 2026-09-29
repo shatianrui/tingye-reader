@@ -8,10 +8,8 @@
  * This file is the single source of truth for the rest of the app:
  * navigation, shelves, lists, detail pages, search, profile and tingye.
  *
- * Color palette: Material 3 roles filled from the reader's own themes — light
- * follows 暖纸 (paper), dark follows 深林 (forest) — so the chrome and the page
- * share one colour temperature. Surface roles are layered to express
- * hierarchy without heavy shadows.
+ * Color palette: Material 3 Tonal Spot generated from a green seed (#006B5F).
+ * Surface roles are layered to express hierarchy without heavy shadows.
  */
 
 import { Platform } from 'react-native';
@@ -72,95 +70,87 @@ export interface AppColors {
   inversePrimary: string;
 }
 
-// Warm "paper" chrome that matches the reader's default 暖纸 theme, so moving
-// between the library and a book doesn't jump from cool teal to warm cream.
 export const lightColors: AppColors = {
   primary: '#2B5C4B',
   onPrimary: '#FFFFFF',
-  primaryContainer: '#CFE3D6',
-  onPrimaryContainer: '#0F2A20',
-
-  secondary: '#56655C',
+  primaryContainer: '#E2EBE4',
+  onPrimaryContainer: '#1C3E33',
+  secondary: '#6E776F',
   onSecondary: '#FFFFFF',
-  secondaryContainer: '#E1EADF',
-  onSecondaryContainer: '#1A2A21',
-
-  tertiary: '#7A5A3A',
-  onTertiary: '#FFFFFF',
-  tertiaryContainer: '#F2DFC8',
-  onTertiaryContainer: '#2B1A08',
-
-  error: '#BA1A1A',
+  secondaryContainer: '#E2EBE4',
+  onSecondaryContainer: '#1C3E33',
+  tertiary: '#C9A259',
+  onTertiary: '#1E2A23',
+  tertiaryContainer: '#EFDFB4',
+  onTertiaryContainer: '#4A3A14',
+  error: '#B3261E',
   onError: '#FFFFFF',
-  errorContainer: '#FFDAD6',
-  onErrorContainer: '#410002',
-
-  background: '#F9F6ED',
-  onBackground: '#283C31',
-  surface: '#FFFEFA',
-  onSurface: '#283C31',
-  surfaceVariant: '#E8E4D8',
-  onSurfaceVariant: '#5A665E',
-
+  errorContainer: '#F9DEDC',
+  onErrorContainer: '#410E0B',
+  background: '#F6F3EA',
+  onBackground: '#1E2A23',
+  surface: '#F6F3EA',
+  onSurface: '#1E2A23',
+  surfaceVariant: '#EDE9DD',
+  onSurfaceVariant: '#6E776F',
   surfaceContainerLowest: '#FFFFFF',
-  surfaceContainerLow: '#FBF8F1',
-  surfaceContainer: '#F3EFE4',
-  surfaceContainerHigh: '#EDE9DD',
-  surfaceContainerHighest: '#E7E3D6',
-
-  outline: '#7E857C',
-  outlineVariant: '#D9D5C8',
-
-  shadow: '#000000',
+  surfaceContainerLow: '#FFFDF8',
+  surfaceContainer: '#F1EDE2',
+  surfaceContainerHigh: '#ECE7DA',
+  surfaceContainerHighest: '#E6E1D4',
+  outline: '#A5ABA2',
+  outlineVariant: '#E6E1D4',
+  shadow: '#1E2A23',
   scrim: '#000000',
-  inverseSurface: '#2E3A33',
-  inverseOnSurface: '#F3F0E6',
-  inversePrimary: '#9FD1B9',
+  inverseSurface: '#1C3E33',
+  inverseOnSurface: '#F6F3EA',
+  inversePrimary: '#9FC7B5',
 };
 
 export const darkColors: AppColors = {
-  primary: '#A8C4AC',
-  onPrimary: '#10251B',
-  primaryContainer: '#2C4A3B',
-  onPrimaryContainer: '#CDE6D3',
-
-  secondary: '#B7C8BA',
-  onSecondary: '#22332A',
-  secondaryContainer: '#34463B',
-  onSecondaryContainer: '#D3E4D6',
-
-  tertiary: '#E3C39F',
-  onTertiary: '#3F2B12',
-  tertiaryContainer: '#5A4127',
-  onTertiaryContainer: '#FFE0BF',
-
-  error: '#FFB4AB',
-  onError: '#690005',
-  errorContainer: '#93000A',
-  onErrorContainer: '#FFDAD6',
-
-  background: '#141D18',
-  onBackground: '#DDDCCD',
-  surface: '#17251F',
-  onSurface: '#DDDCCD',
-  surfaceVariant: '#34443A',
-  onSurfaceVariant: '#B3C0B5',
-
-  surfaceContainerLowest: '#101814',
-  surfaceContainerLow: '#1A2620',
-  surfaceContainer: '#1E2B24',
-  surfaceContainerHigh: '#25332B',
-  surfaceContainerHighest: '#2D3B33',
-
-  outline: '#8C998F',
-  outlineVariant: '#3B4A40',
-
+  primary: '#9FC7B5',
+  onPrimary: '#0F2A21',
+  primaryContainer: '#244A3C',
+  onPrimaryContainer: '#DDEBE3',
+  secondary: '#A9B3AB',
+  onSecondary: '#1C2621',
+  secondaryContainer: '#2A3A32',
+  onSecondaryContainer: '#DDEBE3',
+  tertiary: '#D9B870',
+  onTertiary: '#2E230A',
+  tertiaryContainer: '#4A3A14',
+  onTertiaryContainer: '#EFDFB4',
+  error: '#F2B8B5',
+  onError: '#601410',
+  errorContainer: '#8C1D18',
+  onErrorContainer: '#F9DEDC',
+  background: '#111A16',
+  onBackground: '#E6E8E2',
+  surface: '#111A16',
+  onSurface: '#E6E8E2',
+  surfaceVariant: '#26322C',
+  onSurfaceVariant: '#A9B3AB',
+  surfaceContainerLowest: '#0B120F',
+  surfaceContainerLow: '#18231E',
+  surfaceContainer: '#1D2923',
+  surfaceContainerHigh: '#243029',
+  surfaceContainerHighest: '#2C3931',
+  outline: '#6E776F',
+  outlineVariant: '#2C3931',
   shadow: '#000000',
   scrim: '#000000',
-  inverseSurface: '#DDDCCD',
-  inverseOnSurface: '#1E2B24',
+  inverseSurface: '#E6E8E2',
+  inverseOnSurface: '#1E2A23',
   inversePrimary: '#2B5C4B',
 };
+
+export const brand = {
+  gold: '#C9A259',
+  highlight: '#EFDFB4',
+  deep: '#1C3E33',
+  green: '#2B5C4B',
+  serif: 'Songti SC',
+} as const;
 
 // ---------------------------------------------------------------------------
 // Typography (Material 3 type scale)

@@ -1,6 +1,6 @@
 import * as SecureStore from 'expo-secure-store';
 import { fetch } from 'expo/fetch';
-export const ORIGIN='https://tingye-reader.vercel.app';
+export const ORIGIN='https://copilotcli.top';
 // Site tokens are intentionally kept separate from the new account service.
 const KEY='tingye.vercel.session.v1';
 export type Session={token:string;expiresAt:number;user:{userId:string;displayName:string;username:string}};

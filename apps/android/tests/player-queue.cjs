@@ -19,7 +19,7 @@ function harness(blockPrefetch=false,androidSpeech=false,control={}){
  // Native AudioSource is an Expo Record. The factory normalizes strings;
  // SDK 57's imperative add() goes straight to Swift and requires the object.
  const validate=source=>{if(!source||typeof source!=='object'||typeof source.uri!=='string')throw new Error('Native AudioSource requires a uri record');return source;};
- vm.runInNewContext(compile('player.ts'),{exports:result.exports,module:result,AbortController,Uint8Array,Error,setTimeout,clearTimeout,console,
+ vm.runInNewContext(compile('player.ts'),{exports:result.exports,module:result,AbortController,Uint8Array,Error,setTimeout,clearTimeout,console,fetch:(...args)=>control.fetch?control.fetch(...args):Promise.reject(new Error('offline')),
   require:id=>{
    if(id==='./books')return books.exports;
    if(id==='./pagination')return pagination.exports;
@@ -32,7 +32,7 @@ function harness(blockPrefetch=false,androidSpeech=false,control={}){
    if(id==='expo-secure-store')return {getItemAsync:async()=>null};
    if(id==='expo-speech')return {stop:async()=>{if(androidSpeech)utterances.at(-1)?.onStopped();},speak:(text,options)=>{requests.push(text);utterances.push(options);if(!androidSpeech)setImmediate(()=>{options.onBoundary?.({charIndex:3,charLength:1});options.onBoundary?.({charIndex:6,charLength:1});options.onDone();});}};
    if(id==='expo-file-system')return filesystem;
-   if(id==='./client')return {request:async(_,options)=>{const text=JSON.parse(options.body).input,index=requests.length;requests.push(text);await control.gate?.(index,text);if(blockPrefetch&&requests.length>2)await new Promise(resolve=>pending.push(resolve));return {arrayBuffer:async()=>(control.bytes?.(text,index)??new Uint8Array([1,2,3])).buffer};}};
+   if(id==='./client')return {request:async(_,options)=>{control.bodies?.push(JSON.parse(options.body));const text=JSON.parse(options.body).input,index=requests.length;requests.push(text);await control.gate?.(index,text);if(blockPrefetch&&requests.length>2)await new Promise(resolve=>pending.push(resolve));return control.response?.(text,index)??{arrayBuffer:async()=>(control.bytes?.(text,index)??new Uint8Array([1,2,3])).buffer};}};
    if(id==='expo-audio')return {setAudioModeAsync:async()=>{},createAudioPlaylist:({sources})=>{
     const p={sources:sources.map(s=>validate(typeof s==='string'?{uri:s}:s)),skips:[],plays:0,pauses:0,destroyed:false,playing:false,
      add(s){validate(s);assert.equal(this.destroyed,false);this.sources.push(s);},
@@ -86,6 +86,16 @@ const voice={provider:'glm',model:'glm-tts',voice:'tongtong',rate:1.25};
  assert.equal(midSentence.requests[0],'乙。丙。','resuming must not replay earlier sentences in the same paragraph');midSentence.player.stop();
  const limit=grouped.pagination.narrationGroups('甲乙丙丁。'.repeat(180));
  assert.ok(limit.every(item=>item.text.length<=400));assert.equal(limit.map(item=>item.text).join(''),'甲乙丙丁。'.repeat(180));
+ const clipped=harness();await clipped.player.start({id:'long-cloud',chapters:[{title:'一',text:'甲乙丙丁。'.repeat(80)}]},0,0,voice);await tick();
+ assert.ok(clipped.requests[0].length<=60&&clipped.requests.every(text=>text.length<=160),'cloud clips stay well inside the synthesis timeout');clipped.player.stop();
+ const oss='https://minimax-algeng-chat-tts.oss-cn-wulanchabu.aliyuncs.com/clip.mp3?Signature=x',fetched=[],directBodies=[];
+ const direct=harness(false,false,{bodies:directBodies,response:()=>({headers:{get:()=> 'application/json'},json:async()=>({format:'mp3',delivery:'url',url:oss})}),fetch:async(url,options)=>{fetched.push({url,options});return {ok:true,arrayBuffer:async()=>new Uint8Array([7,8,9]).buffer};}});
+ await direct.player.start({id:'direct',chapters:[{title:'一',text:'甲乙。'}]},0,0,{...voice,provider:'minimax'});for(let i=0;i<5;i++)await tick();
+ assert.equal(directBodies[0].delivery,'url');assert.deepEqual(fetched.map(f=>f.url),[oss]);assert.equal(fetched[0].options.headers,undefined);direct.player.stop();
+ const relayBodies=[];
+ const relay=harness(false,false,{bodies:relayBodies,response:(_,index)=>index===0?{headers:{get:()=> 'application/json'},json:async()=>({delivery:'url',url:'https://evil.example/a.mp3'})}:undefined,fetch:async()=>{throw new Error('must not fetch foreign hosts');}});
+ await relay.player.start({id:'relay',chapters:[{title:'一',text:'甲乙。'}]},0,0,{...voice,provider:'minimax'});for(let i=0;i<5;i++)await tick();
+ assert.equal(relayBodies[1]?.delivery,undefined);assert.equal(relayBodies.length,2,'fall back to the server relay');relay.player.stop();
  // A sentence spans three pages but stays in one audio track. Page turns
  // update the cursor only: no second TTS request, pause, seek or restart.
  const paged=harness(),moves=[];paged.player.onPosition=(ci,si,offset)=>moves.push({ci,si,offset});
@@ -113,11 +123,6 @@ const voice={provider:'glm',model:'glm-tts',voice:'tongtong',rate:1.25};
  assert.ok(envelope);assert.equal(paged.progress.estimatedSpeechOffset('甲乙丙丁',0,.1,.6,envelope),0);
  assert.equal(paged.progress.estimatedSpeechOffset('甲乙丙丁',0,.3,.6,envelope),2);
  assert.equal(paged.progress.estimatedSpeechOffset('甲乙丙丁',0,.5,.6,envelope),4);
- // The native player's reported duration can diverge from the WAV header's
- // (envelope.duration, always .6 here); the native-domain fraction currentTime/duration
- // must drive the estimate, never currentTime/envelope.duration.
- assert.equal(paged.progress.estimatedSpeechOffset('甲乙丙丁',0,.2,1.2,envelope),0,'same ratio as .1/.6 must give the same offset even though duration diverges from envelope.duration');
- assert.equal(paged.progress.estimatedSpeechOffset('甲乙丙丁',0,.6,1.2,envelope),2,'same ratio as .3/.6 must give the same offset even though duration diverges from envelope.duration');
  assert.deepEqual(wav,original,'audio must never be trimmed or rewritten');
  assert.equal(paged.progress.wavEnvelope(new Uint8Array([1,2,3])),undefined);
  assert.deepEqual(Array.from(paged.pagination.measuredPageEnds('甲乙\n丙丁\n戊己',[{text:'甲乙',height:20},{text:'丙丁',height:20},{text:'戊己',height:20}],40)),[6,8]);

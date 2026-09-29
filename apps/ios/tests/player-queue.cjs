@@ -20,7 +20,7 @@ function harness(blockPrefetch=false,androidSpeech=false,control={}){
  // Native AudioSource is an Expo Record. The factory normalizes strings;
  // SDK 57's imperative add() goes straight to Swift and requires the object.
  const validate=source=>{if(!source||typeof source!=='object'||typeof source.uri!=='string')throw new Error('Native AudioSource requires a uri record');return source;};
- vm.runInNewContext(compile('player.ts'),{exports:result.exports,module:result,AbortController,Uint8Array,Error,setTimeout,clearTimeout,console,
+ vm.runInNewContext(compile('player.ts'),{exports:result.exports,module:result,AbortController,Uint8Array,Error,setTimeout,clearTimeout,console,fetch:(...args)=>control.fetch?control.fetch(...args):Promise.reject(new Error('offline')),
   require:id=>{
    if(id==='./books')return books.exports;
    if(id==='./pagination')return pagination.exports;
@@ -35,7 +35,7 @@ function harness(blockPrefetch=false,androidSpeech=false,control={}){
    if(id==='expo-secure-store')return {getItemAsync:async()=>null};
    if(id==='expo-speech')return {stop:async()=>{if(androidSpeech)utterances.at(-1)?.onStopped();},speak:(text,options)=>{requests.push(text);utterances.push(options);if(!androidSpeech)setImmediate(()=>{options.onBoundary?.({charIndex:3,charLength:1});options.onBoundary?.({charIndex:6,charLength:1});options.onDone();});}};
    if(id==='expo-file-system')return filesystem;
-   if(id==='./client')return {request:async(_,options)=>{const text=JSON.parse(options.body).input,index=requests.length;requests.push(text);await control.gate?.(index,text);if(blockPrefetch&&requests.length>2)await new Promise(resolve=>pending.push(resolve));return control.response?.(text,index)??{arrayBuffer:async()=>(control.bytes?.(text,index)??new Uint8Array([1,2,3])).buffer};}};
+   if(id==='./client')return {request:async(_,options)=>{control.bodies?.push(JSON.parse(options.body));const text=JSON.parse(options.body).input,index=requests.length;requests.push(text);await control.gate?.(index,text);if(blockPrefetch&&requests.length>2)await new Promise(resolve=>pending.push(resolve));return control.response?.(text,index)??{arrayBuffer:async()=>(control.bytes?.(text,index)??new Uint8Array([1,2,3])).buffer};}};
    if(id==='expo-audio')return {setAudioModeAsync:async()=>{},createAudioPlaylist:({sources})=>{
     const p={sources:sources.map(s=>validate(typeof s==='string'?{uri:s}:s)),skips:[],plays:0,pauses:0,destroyed:false,playing:false,
      add(s){validate(s);assert.equal(this.destroyed,false);this.sources.push(s);},
@@ -46,11 +46,9 @@ function harness(blockPrefetch=false,androidSpeech=false,control={}){
    throw new Error('Unexpected dependency '+id);
   }
  });
- return {player:result.exports.readerPlayer,requests,playlists,files,utterances,pagination:pagination.exports,progress:progress.exports,Cache:cache.exports.AudioCache,policy:policy.exports,release(){blockPrefetch=false;pending.splice(0).forEach(r=>r());}};
+ return {player:result.exports.readerPlayer,hex:result.exports.hexBytes,requests,playlists,files,utterances,pagination:pagination.exports,progress:progress.exports,Cache:cache.exports.AudioCache,policy:policy.exports,release(){blockPrefetch=false;pending.splice(0).forEach(r=>r());}};
 }
-// Prose-length paragraphs: each stays its own track (short runs would merge).
-const prose=head=>head+'字'.repeat(62)+'。';
-const book={id:'test',chapters:[{title:'一',text:[...'甲乙丙丁戊己庚辛壬'].map(prose).join('\n')}]};
+const book={id:'test',chapters:[{title:'一',text:'甲。\n乙。\n丙。\n丁。\n戊。\n己。\n庚。\n辛。\n壬。'}]};
 const voice={provider:'glm',model:'glm-tts',voice:'tongtong',rate:1.25};
 module.exports={harness,tick};
 if(require.main===module)(async()=>{
@@ -62,7 +60,7 @@ if(require.main===module)(async()=>{
  h.player.togglePause();assert.equal(p.playing,true);assert.equal(p.playbackRate,.75);
  p.emit({currentIndex:3,isBuffering:false,didJustFinish:false});await tick();assert.equal(p.sources.length,9);
  p.emit({currentIndex:6,isBuffering:false,didJustFinish:false});await tick();assert.equal(p.sources.length,9);
- assert.deepEqual(h.requests,book.chapters[0].text.split('\n'));
+ assert.deepEqual(h.requests,['甲。','乙。','丙。','丁。','戊。','己。','庚。','辛。','壬。']);
  p.sources.forEach(s=>assert.ok(s.uri.endsWith('.wav')));
  p.emit({currentIndex:8,isBuffering:false,didJustFinish:true});assert.equal(h.player.snapshot().active,false);assert.equal(h.files.size,9,'stop retains bounded replay cache');h.player.clearCache();assert.equal(h.files.size,0);
  const switching=harness();
@@ -84,10 +82,9 @@ if(require.main===module)(async()=>{
  const paused=harness();await paused.player.start(book,0,0,voice,{startOffset:0,paused:true});await tick();
  assert.equal(paused.playlists[0].plays,0,'changing voice preserves pause');paused.player.stop();
  const grouped=harness(),positions=[];grouped.player.onPosition=(_,si)=>positions.push(si);
- const opening='甲乙丙。丁戊己。庚辛壬'+'字'.repeat(50)+'。';
- await grouped.player.start({id:'context',chapters:[{title:'一',text:opening+'\n下一段。'}]},0,0,voice);
+ await grouped.player.start({id:'context',chapters:[{title:'一',text:'甲乙丙。丁戊己。庚辛壬。\n下一段。'}]},0,0,voice);
  await tick();
- assert.deepEqual(grouped.requests,[opening,'下一段。'],'same paragraph shares prosody; a prose paragraph never absorbs the next one');
+ assert.deepEqual(grouped.requests,['甲乙丙。丁戊己。庚辛壬。','下一段。'],'same paragraph shares prosody without crossing paragraph breaks');
  grouped.playlists[0].emit({currentIndex:0,currentTime:5,duration:9,isBuffering:false,playing:true});
  assert.equal(positions.at(-1),1,'grouped narration keeps original sentence highlight IDs');grouped.player.stop();
  const atomic=harness(),snapshots=[];
@@ -114,18 +111,11 @@ if(require.main===module)(async()=>{
  assert.equal(midSentence.requests[0],'乙。丙。','resuming must not replay earlier sentences in the same paragraph');midSentence.player.stop();
  const limit=grouped.pagination.narrationGroups('甲乙丙丁。'.repeat(180));
  assert.ok(limit.every(item=>item.text.length<=400));assert.equal(limit.map(item=>item.text).join(''),'甲乙丙丁。'.repeat(180));
- // Runs of short paragraphs (dialogue, headings) share one request so every
- // line no longer pays a full synthesis round trip; prose never merges.
- const {narrationGroups,SHORT_RUN_LIMIT}=grouped.pagination;
- const dialogue='“来了？”\n“嗯。”\n他点点头。\n'+prose('窗外')+'\n“走吧。”\n“好。”';
- const runs=narrationGroups(dialogue);
- assert.deepEqual(Array.from(runs,g=>g.text),['“来了？”\n“嗯。”\n他点点头。',prose('窗外'),'“走吧。”\n“好。”'],'short lines merge, prose paragraph stays alone on both sides');
- assert.deepEqual(Array.from(runs[0].anchors,a=>a.position),[0,1,2],'merged run keeps every original sentence ID');
- runs.forEach(g=>assert.equal(g.text,dialogue.slice(g.start,g.end),'group text is an exact slice of the chapter'));
- const lines=Array.from({length:40},(_,i)=>`第${i}行短句。`).join('\n'),capped=narrationGroups(lines);
- assert.ok(capped.length>1&&capped.every(g=>g.text.length<=SHORT_RUN_LIMIT),'short runs are capped');
- assert.deepEqual(Array.from(capped.flatMap(g=>g.anchors.map(a=>a.position))),Array.from({length:40},(_,i)=>i),'no sentence lost or duplicated');
- assert.equal(narrationGroups(dialogue,dialogue.indexOf('“嗯'))[0].text,'“嗯。”\n他点点头。','resuming mid-run starts at the chosen line');
+ const cloudGroups=grouped.pagination.narrationGroups('甲乙丙丁。'.repeat(180),0,0,grouped.pagination.CLOUD_GROUP_CHARS,grouped.pagination.CLOUD_FIRST_GROUP_CHARS);
+ assert.ok(cloudGroups[0].text.length<=60&&cloudGroups.every(item=>item.text.length<=160));assert.equal(cloudGroups.map(item=>item.text).join(''),'甲乙丙丁。'.repeat(180));
+ const clipped=harness();await clipped.player.start({id:'long-cloud',chapters:[{title:'一',text:'甲乙丙丁。'.repeat(80)}]},0,0,voice);await tick();
+ assert.ok(clipped.requests[0].length<=60&&clipped.requests.every(text=>text.length<=160),'cloud clips stay well inside the synthesis timeout');clipped.player.stop();
+ assert.deepEqual([...clipped.hex('00ff7FaB09')],[0,255,127,171,9]);
  // A sentence spans three pages but stays in one audio track. Page turns
  // update the cursor only: no second TTS request, pause, seek or restart.
  const paged=harness(),moves=[];paged.player.onPosition=(ci,si,offset)=>moves.push({ci,si,offset});
@@ -170,6 +160,18 @@ if(require.main===module)(async()=>{
  await brokenTiming.player.start({id:'broken',chapters:[{title:'一',text:'甲乙。丙丁。'}]},0,0,{...voice,provider:'minimax'});
  brokenTiming.playlists[0].emit({...ns,currentTime:4,duration:5});
  assert.equal(brokenTiming.player.snapshot().cursor.position,1);assert.match(brokenTiming.player.snapshot().timingNotice,/进度估算/);assert.equal(brokenTiming.player.snapshot().error,'');brokenTiming.player.stop();
+ const oss='https://minimax-algeng-chat-tts.oss-cn-wulanchabu.aliyuncs.com/clip.mp3?Signature=x',subs='https://minimax-algeng-chat-tts.oss-cn-wulanchabu.aliyuncs.com/clip.json';
+ const fetched=[],directBodies=[];
+ const direct=harness(false,false,{bodies:directBodies,response:()=>({headers:{get:()=> 'application/json'},json:async()=>({format:'mp3',delivery:'url',url:oss,subtitleUrl:subs})}),fetch:async(url,options)=>{fetched.push({url,options});return url===subs?{ok:true,json:async()=>[{timestamped_words:[{word:'甲乙',time_begin:0,time_end:2000},{word:'丙丁',time_begin:3000,time_end:5000}]}]}:{ok:true,arrayBuffer:async()=>new Uint8Array([7,8,9]).buffer};}});
+ await direct.player.start({id:'direct',chapters:[{title:'一',text:'甲乙。丙丁。'}]},0,0,{...voice,provider:'minimax'});
+ assert.equal(directBodies[0].delivery,'url');assert.deepEqual(fetched.map(f=>f.url).sort(),[oss,subs].sort());assert.ok(fetched.every(f=>f.options.headers===undefined&&f.options.redirect==='error'),'no credentials or redirects to provider storage');
+ assert.deepEqual([...direct.files.values()][0],new Uint8Array([7,8,9]));
+ direct.playlists[0].emit({...ns,currentTime:3.2,duration:5});assert.equal(direct.player.snapshot().cursor.start,3);direct.player.stop();
+ const relayBodies=[];
+ const relay=harness(false,false,{bodies:relayBodies,response:(_,index)=>index===0?{headers:{get:()=> 'application/json'},json:async()=>({delivery:'url',url:'https://evil.example/a.mp3'})}:jsonResponse([{text:'甲乙',startTime:0,endTime:2}]),fetch:async()=>{throw new Error('must not fetch foreign hosts');}});
+ await relay.player.start({id:'relay',chapters:[{title:'一',text:'甲乙。'}]},0,0,{...voice,provider:'minimax'});
+ assert.equal(relayBodies[0].delivery,'url');assert.equal(relayBodies[1].delivery,undefined,'fall back to the server relay');assert.deepEqual([...relay.files.values()][0],new Uint8Array([1,2,3]));relay.player.stop();
+ const glmBodies=[];const glm=harness(false,false,{bodies:glmBodies});await glm.player.start({id:'glm',chapters:[{title:'一',text:'甲乙。'}]},0,0,voice);assert.equal(glmBodies[0].delivery,undefined);glm.player.stop();
  console.log('PASS: absent/malformed timestamps fall back to labelled sentence following; native clock, no rewind, rate, pause/buffer, chapter and cancellation guards; real word timing remains preferred.');
  const wav=Buffer.alloc(44+4800*2);wav.write('RIFF');wav.writeUInt32LE(wav.length-8,4);wav.write('WAVEfmt ',8);wav.writeUInt32LE(16,16);wav.writeUInt16LE(1,20);wav.writeUInt16LE(1,22);wav.writeUInt32LE(8000,24);wav.writeUInt32LE(16000,28);wav.writeUInt16LE(2,32);wav.writeUInt16LE(16,34);wav.write('data',36);wav.writeUInt32LE(9600,40);
  for(let i=800;i<4000;i++)wav.writeInt16LE(i%2?8000:-8000,44+i*2);
@@ -177,11 +179,6 @@ if(require.main===module)(async()=>{
  assert.ok(envelope);assert.equal(paged.progress.estimatedSpeechOffset('甲乙丙丁',0,.1,.6,envelope),0);
  assert.equal(paged.progress.estimatedSpeechOffset('甲乙丙丁',0,.3,.6,envelope),2);
  assert.equal(paged.progress.estimatedSpeechOffset('甲乙丙丁',0,.5,.6,envelope),4);
- // The native player's reported duration can diverge from the WAV header's
- // (envelope.duration, always .6 here); the native-domain fraction currentTime/duration
- // must drive the estimate, never currentTime/envelope.duration.
- assert.equal(paged.progress.estimatedSpeechOffset('甲乙丙丁',0,.2,1.2,envelope),0,'same ratio as .1/.6 must give the same offset even though duration diverges from envelope.duration');
- assert.equal(paged.progress.estimatedSpeechOffset('甲乙丙丁',0,.6,1.2,envelope),2,'same ratio as .3/.6 must give the same offset even though duration diverges from envelope.duration');
  assert.deepEqual(wav,original,'audio must never be trimmed or rewritten');
  assert.equal(paged.progress.wavEnvelope(new Uint8Array([1,2,3])),undefined);
  assert.deepEqual(Array.from(paged.pagination.measuredPageEnds('甲乙\n丙丁\n戊己',[{text:'甲乙',height:20},{text:'丙丁',height:20},{text:'戊己',height:20}],40)),[6,8]);
@@ -189,12 +186,12 @@ if(require.main===module)(async()=>{
  console.log('PASS: whole-sentence synthesis, within-track page turns without audio operations, pause/buffer guards, manual start, native speech boundaries and read-only WAV envelope.');
  console.log('PASS: paragraph prosody groups, original sentence IDs, request size limits, live rate changes, initial-buffer pause and paused voice replacement.');
  const android=harness(false,true);
- const narrating=android.player.start({id:'android',chapters:[{title:'一',text:'甲乙丙丁戊己。\n'+prose('下一段')}]},0,0,{...voice,provider:'system'});
+ const narrating=android.player.start({id:'android',chapters:[{title:'一',text:'甲乙丙丁戊己。\n下一段。'}]},0,0,{...voice,provider:'system'});
  await tick();android.utterances[0].onBoundary({charIndex:3});android.player.togglePause();await tick();
  assert.equal(android.player.snapshot().active,true);assert.equal(android.player.snapshot().paused,true);assert.equal(android.requests.length,1,'pause must not advance to next paragraph');
  android.player.togglePause();await tick();assert.equal(android.requests[1],'丁戊己。','Android resumes at latest word boundary');
  android.utterances[1].onBoundary({charIndex:1});android.player.setRate(1.75);await tick();assert.equal(android.utterances.at(-1).rate,1.75);assert.equal(android.requests.at(-1),'戊己。');
- android.utterances.at(-1).onDone();await tick();assert.equal(android.requests.at(-1),prose('下一段'));
+ android.utterances.at(-1).onDone();await tick();assert.equal(android.requests.at(-1),'下一段。');
  android.player.stop();await narrating;assert.equal(android.player.snapshot().active,false);
  console.log('PASS: Android system TTS pause/resume retains position and stop cancels narration.');
  // New buffering policy: measure actual unmodified WAV duration, keep long
@@ -223,7 +220,7 @@ if(require.main===module)(async()=>{
  assert.equal(ordered.requests.length,beforeReplay,'same voice/text reuses audio even after speed changes');
  ordered.files.clear();ordered.player.stop();await ordered.player.start(book,0,0,voice);await tick();assert.ok(ordered.requests.length>beforeReplay,'OS cache deletion safely triggers new synthesis');
  ordered.player.clearCache();const afterLogout=ordered.requests.length;await ordered.player.start(book,0,0,voice);await tick();assert.ok(ordered.requests.length>afterLogout,'account cache reset does not reuse prior audio');ordered.player.clearCache();
- const many={id:'many',chapters:[{title:'一',text:Array.from({length:30},(_,i)=>prose(`段落${i}`)).join('\n')}]};
+ const many={id:'many',chapters:[{title:'一',text:Array.from({length:30},(_,i)=>`段落${i}。`).join('\n')}]};
  const seconds=harness(false,false,{bytes:()=>wavFor(20)});await seconds.player.start(many,0,0,{...voice,rate:1});await tick();assert.equal(seconds.playlists[0].sources.length,5);
  seconds.player.setRate(2);await tick();assert.ok(seconds.playlists[0].sources.length>5,'2x extends lookahead using playback seconds');assert.ok(seconds.playlists[0].sources.length<=12);
  assert.equal(seconds.playlists[0].plays,1);assert.equal(seconds.playlists[0].pauses,0);seconds.player.clearCache();

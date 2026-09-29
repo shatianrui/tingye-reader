@@ -47,9 +47,8 @@ export function useReadingMetrics(userId:string|undefined,reading:boolean) {
 
 export type LibraryUI={books:Book[];nativeBooks:NativeBook[];username:string;busy:boolean;notice:string;
   stats:Record<string,number>;marks:Record<string,number[]>;toggleMark:(id:string,index:number)=>void;
-  open:(id:string,chapter?:number)=>Promise<void>;load:(id:string)=>Promise<NativeBook>;
+  open:(id:string,chapter?:number,listen?:boolean)=>Promise<void>;load:(id:string)=>Promise<NativeBook>;
   importBooks:()=>void;refresh:()=>void;actions:(id:string)=>void;settings:()=>void;logout:()=>void;dismissNotice:()=>void;
-  einkMode:boolean;setEinkMode:(on:boolean)=>void;
 };
 export const LibraryUIContext=createContext<LibraryUI|null>(null);
 export function useLibraryUI(){const value=useContext(LibraryUIContext);if(!value)throw Error('Library UI needs the signed-in library');return value;}

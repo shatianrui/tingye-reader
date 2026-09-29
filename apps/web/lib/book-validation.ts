@@ -33,9 +33,3 @@ export function validateBook(value:unknown):Book{
  // clients validate/sanitize original documents and resources when loading them.
  return {...meta,chapters:b.chapters.map(({title,text})=>({title,text}))};
 }
-// A completing upload is stale if a newer content version already landed while it
-// was in flight (two devices racing signed uploads for the same book). Either side
-// missing a version (older, unversioned clients) must never block completion.
-export function staleUpload(currentVersion:number|null|undefined,uploadVersion:number|null|undefined):boolean{
- return currentVersion!=null&&uploadVersion!=null&&Number(currentVersion)>Number(uploadVersion);
-}

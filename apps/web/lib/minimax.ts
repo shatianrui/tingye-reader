@@ -1,18 +1,72 @@
 const env = process.env;
 
-export async function minimaxRequest(path: '/t2a_v2' | '/get_voice', body: unknown) {
+const MAX_AUDIO_HEX=16*1024*1024;
+type MiniMaxResult={base_resp?:{status_code:number;status_msg?:string};data?:{audio?:string;status?:number;subtitle_file?:string;subtitle?:unknown;subtitles?:unknown};system_voice?:MiniMaxVoice[];voice_cloning?:MiniMaxVoice[];voice_generation?:MiniMaxVoice[]};
+function providerError(code:number|undefined){
+  return new Error(code===1008?'MiniMax 语音额度不足，请检查账户余额。':code===1004?'MiniMax 密钥无效或没有语音权限。':`MiniMax 语音服务返回错误（${code??'未知'}），请检查语音权限与额度。`);
+}
+function checked(result:MiniMaxResult){if(result.base_resp&&result.base_resp.status_code!==0)throw providerError(result.base_resp.status_code);return result;}
+async function minimaxFetch(path: '/t2a_v2' | '/get_voice', body: unknown) {
   if (!env.MINIMAX_API_KEY) throw new Error('MiniMax 尚未配置服务端密钥。');
-  const origin=env.MINIMAX_REGION==='global'?'https://api.minimax.io':'https://api.minimaxi.com';
+  const origin=env.MINIMAX_REGION==='global'?'https://api.minimax.io':'https://api.minimax.cn';
+  const url=new URL('/v1'+path,origin);
+  if(env.MINIMAX_GROUP_ID)url.searchParams.set('GroupId',env.MINIMAX_GROUP_ID);
   let response:Response;
-  try {response=await fetch(origin+'/v1'+path,{method:'POST',headers:{Authorization:`Bearer ${env.MINIMAX_API_KEY}`,'Content-Type':'application/json'},body:JSON.stringify(body),redirect:'manual',signal:AbortSignal.timeout(45000)});}
+  try {response=await fetch(url,{method:'POST',headers:{Authorization:`Bearer ${env.MINIMAX_API_KEY}`,'Content-Type':'application/json'},body:JSON.stringify(body),redirect:'manual',signal:AbortSignal.timeout(45000)});}
   catch(error){const e=error as Error & {cause?:{code?:string;message?:string}};console.warn('MiniMax transport failed',{name:e.name,code:e.cause?.code,message:e.cause?.message||e.message});throw new Error('MiniMax 连接失败，请稍后重试。');}
   // Workers only supports manual/follow; never forward the API key on redirects.
   if(response.status>=300&&response.status<400)throw new Error('MiniMax 服务地址发生跳转，请检查服务端区域配置。');
   if(!response.ok)throw new Error(`MiniMax 请求失败（${response.status}），请检查密钥、权限与额度。`);
-  const result=await response.json() as {base_resp?:{status_code:number;status_msg?:string};data?:{audio?:string;subtitle_file?:string};system_voice?:MiniMaxVoice[];voice_cloning?:MiniMaxVoice[];voice_generation?:MiniMaxVoice[]};
-  const code=result.base_resp?.status_code;
-  if(code!==0)throw new Error(code===1008?'MiniMax 语音额度不足，请检查账户余额。':code===1004?'MiniMax 密钥无效或没有语音权限。':`MiniMax 语音服务返回错误（${code??'未知'}），请检查语音权限与额度。`);
+  return response;
+}
+export async function minimaxRequest(path: '/t2a_v2' | '/get_voice', body: unknown) {
+  const result=checked(await (await minimaxFetch(path,body)).json() as MiniMaxResult);
+  if(result.base_resp?.status_code!==0)throw providerError(result.base_resp?.status_code);
   return result;
+}
+// MiniMax's non-streaming body is delivered far slower than real time from
+// this server (about 21 s for 30 s of audio), while SSE delivers the same
+// audio in about 2 s. Aggregate the stream so clients still get one file.
+async function minimaxStreamedAudio(body:Record<string,unknown>){
+  const response=await minimaxFetch('/t2a_v2',{...body,stream:true,stream_options:{exclude_aggregated_audio:true}});
+  if(!response.headers.get('content-type')?.includes('event-stream')){
+    // Errors are returned as ordinary JSON before any audio is produced.
+    const result=checked(await response.json() as MiniMaxResult);
+    return {audio:result.data?.audio??'',subtitles:result.data?.subtitles,subtitleFile:result.data?.subtitle_file};
+  }
+  if(!response.body)throw new Error('MiniMax 未返回有效音频。');
+  const reader=response.body.getReader(),decoder=new TextDecoder(),audio:string[]=[],pieces:unknown[]=[];
+  let buffer='',size=0,finished=false,subtitles:unknown,subtitleFile:string|undefined;
+  const handle=(event:string)=>{
+    const data=event.split('\n').filter(line=>line.startsWith('data:')).map(line=>line.slice(5).trimStart()).join('\n');
+    if(!data||data==='[DONE]')return;
+    const result=checked(JSON.parse(data) as MiniMaxResult);
+    const chunk=result.data;if(!chunk)return;
+    if(chunk.status===2){finished=true;subtitles=chunk.subtitles;subtitleFile=chunk.subtitle_file;return;}
+    if(chunk.subtitle)pieces.push(chunk.subtitle);
+    if(typeof chunk.audio==='string'&&chunk.audio){size+=chunk.audio.length;if(size>MAX_AUDIO_HEX)throw new Error('MiniMax 音频过大，请缩短朗读段落。');audio.push(chunk.audio);}
+  };
+  try{
+    for(;;){
+      const next=await reader.read();
+      if(next.done)break;
+      buffer+=decoder.decode(next.value,{stream:true}).replace(/\r/g,'');
+      if(buffer.length>MAX_AUDIO_HEX+1024*1024)throw new Error('MiniMax 返回数据异常。');
+      for(let end=buffer.indexOf('\n\n');end>=0;end=buffer.indexOf('\n\n')){handle(buffer.slice(0,end));buffer=buffer.slice(end+2);}
+    }
+    buffer+=decoder.decode();if(buffer.trim())handle(buffer);
+  }catch(error){await reader.cancel().catch(()=>{});if(error instanceof SyntaxError)throw new Error('MiniMax 返回数据异常。');throw error;}
+  if(!finished)throw new Error('MiniMax 语音流意外中断，请重试。');
+  return {audio:audio.join(''),subtitles:subtitles??(pieces.length?pieces:undefined),subtitleFile};
+}
+async function subtitleFileWords(file:string|undefined){
+  // Provider-owned subtitle storage only; never forward API credentials.
+  const url=minimaxFileUrl(file);if(!url)throw Error('Unexpected subtitle host');
+  const response=await fetch(url,{redirect:'manual',signal:AbortSignal.timeout(8000)});
+  if(!response.ok||Number(response.headers.get('content-length'))>512000)throw Error('Invalid subtitles');
+  const raw=await response.text();if(raw.length>512000)throw Error('Subtitles too large');
+  const segments=JSON.parse(raw);if(!Array.isArray(segments))throw Error('Invalid subtitle format');
+  return minimaxWords(segments);
 }
 type MiniMaxVoice={voice_id:string;voice_name?:string;description?:string[]};
 export function minimaxWords(segments:unknown){
@@ -31,25 +85,36 @@ export function minimaxWords(segments:unknown){
   }
   return words;
 }
+const OSS_HOST=/^minimax-algeng-chat-tts\.oss-cn-[a-z0-9-]+\.aliyuncs\.com$/;
+export function minimaxFileUrl(value:unknown){
+  if(typeof value!=='string'||value.length>4096)return undefined;
+  try{const url=new URL(value);return url.protocol==='https:'&&OSS_HOST.test(url.hostname)&&!url.port&&!url.username&&!url.password?url.href:undefined;}catch{return undefined;}
+}
+function speechRequest(input:string,voice:string,withTiming:boolean,audio_setting:Record<string,unknown>){
+  return {model:env.MINIMAX_MODEL||'speech-2.8-hd',text:input,...(withTiming?{subtitle_enable:true,subtitle_type:'word'}:{}),language_boost:'auto',voice_setting:{voice_id:voice,speed:1,vol:1,pitch:0},audio_setting};
+}
+// The server sits outside mainland China while MiniMax and most listeners are
+// inside it. Opt-in clients download the provider's signed files directly,
+// so audio never crosses the congested border link twice.
+export async function minimaxAudioUrl(input:string,voice:string,withTiming=false){
+  const result=await minimaxRequest('/t2a_v2',{...speechRequest(input,voice,withTiming,{format:'mp3',sample_rate:32000,bitrate:128000,channel:1}),stream:false,output_format:'url'});
+  const url=minimaxFileUrl(result.data?.audio),subtitleUrl=withTiming?minimaxFileUrl(result.data?.subtitle_file):undefined;
+  if(!url)return undefined;
+  return Response.json({format:'mp3',delivery:'url',url,...(subtitleUrl?{subtitleUrl}:{})},{headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
+}
 export async function minimaxAudio(input:string,voice:string,withTiming=false) {
-  const result=await minimaxRequest('/t2a_v2',{model:env.MINIMAX_MODEL||'speech-2.8-hd',text:input,stream:false,output_format:'hex',...(withTiming?{subtitle_enable:true,subtitle_type:'word'}:{}),language_boost:'auto',voice_setting:{voice_id:voice,speed:1,vol:1,pitch:0},audio_setting:{format:'mp3',sample_rate:32000,bitrate:128000,channel:1}});
-  const hex=result.data?.audio;
-  if(typeof hex!=='string'||!hex.length||hex.length>16*1024*1024||hex.length%2||!/^[0-9a-f]+$/i.test(hex))throw new Error('MiniMax 未返回有效音频。');
+  // Proxied audio crosses the border twice; 64 kbps mono keeps speech clear at half the bytes.
+  const result=await minimaxStreamedAudio({...speechRequest(input,voice,withTiming,{format:'mp3',sample_rate:24000,bitrate:64000,channel:1}),output_format:'hex'});
+  const hex=result.audio;
+  if(typeof hex!=='string'||!hex.length||hex.length>MAX_AUDIO_HEX||hex.length%2||!/^[0-9a-f]+$/i.test(hex))throw new Error('MiniMax 未返回有效音频。');
   if(withTiming){
     let words:{text:string;startTime:number;endTime:number}[]=[];
     try{
-      const url=new URL(result.data?.subtitle_file||'');
-      // Provider-owned subtitle storage only; never forward API credentials.
-      if(url.protocol!=='https:'||url.hostname!=='minimax-algeng-chat-tts.oss-cn-wulanchabu.aliyuncs.com'||url.port||url.username||url.password)throw Error('Unexpected subtitle host');
-      const response=await fetch(url,{redirect:'manual',signal:AbortSignal.timeout(8000)});
-      if(!response.ok||Number(response.headers.get('content-length'))>512000)throw Error('Invalid subtitles');
-      const raw=await response.text();if(raw.length>512000)throw Error('Subtitles too large');
-      const segments=JSON.parse(raw);if(!Array.isArray(segments))throw Error('Invalid subtitle format');
-      words=minimaxWords(segments);
+      words=Array.isArray(result.subtitles)?minimaxWords(result.subtitles):await subtitleFileWords(result.subtitleFile);
     }catch{console.warn('MiniMax word timestamps unavailable; retaining synthesized audio.');}
     return Response.json({format:'mp3',encoding:'hex',audio:hex,words},{headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
   }
   const bytes=new Uint8Array(hex.length/2);
-  for(let i=0;i<bytes.length;i++)bytes[i]=parseInt(hex.slice(i*2,i*2+2),16);
+  for(let i=0;i<bytes.length;i++)bytes[i]=parseInt(hex.substr(i*2,2),16);
   return new Response(bytes,{headers:{'Content-Type':'audio/mpeg','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
 }

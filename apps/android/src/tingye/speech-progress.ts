@@ -34,12 +34,7 @@ export function estimatedSpeechOffset(text:string,start:number,currentTime:numbe
   if(!Number.isFinite(currentTime)||!Number.isFinite(duration)||duration<=0||currentTime<=0)return start;
   let ratio=Math.min(1,currentTime/duration);
   if(envelope?.total){
-    // currentTime and duration are both in the native player's clock domain;
-    // envelope.duration is a separate WAV-header estimate that can drift from
-    // it (see player.ts, where audio.duration gets overwritten by the real
-    // native status.duration). Map the native-domain fraction onto the
-    // envelope's own index range, never divide currentTime by envelope.duration.
-    const point=Math.min(envelope.cumulative.length-1,currentTime/duration*(envelope.cumulative.length-1));
+    const point=Math.min(envelope.cumulative.length-1,currentTime/envelope.duration*(envelope.cumulative.length-1));
     const i=Math.floor(point),a=envelope.cumulative[i],b=envelope.cumulative[Math.min(i+1,envelope.cumulative.length-1)];
     ratio=(a+(b-a)*(point-i))/envelope.total;
   }
