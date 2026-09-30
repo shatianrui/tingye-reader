@@ -1,7 +1,7 @@
 // Canonical cross-platform backup engine. Run tools/sync-backup-core.mjs after edits.
 export type BackupBook={id:string;title:string;author:string;format:string;color?:string;chapters:{title:string;text:string}[];chapter?:number;position?:number;sample?:boolean};
 export type BackupEntry<B extends BackupBook>=B&{local?:boolean;deleted?:boolean;dirty?:boolean;updatedAt?:number;localEventAt?:number;backedUp?:boolean;contentDirty?:boolean;contentVersion?:number;chapterCount?:number;coverUri?:string;coverChecked?:boolean;coverCacheVersion?:number;snapshotRevision?:string;cloudRevision?:string;backupAt?:number};
-export type BackupStorage<B extends BackupBook>={load:()=>Promise<BackupEntry<B>[]>;save:(rows:BackupEntry<B>[])=>Promise<void>;read:(id:string)=>Promise<B|undefined>;write:(book:B)=>Promise<void>;remove:(id:string)=>Promise<void>;cover?:(book:B)=>Promise<string|undefined>};
+export type BackupStorage<B extends BackupBook>={load:()=>Promise<BackupEntry<B>[]>;save:(rows:BackupEntry<B>[])=>Promise<void>;update?:(change:(rows:BackupEntry<B>[])=>void)=>Promise<BackupEntry<B>[]>;read:(id:string)=>Promise<B|undefined>;write:(book:B)=>Promise<void>;remove:(id:string)=>Promise<void>;cover?:(book:B)=>Promise<string|undefined>};
 export type BackupRemote=<T>(path:string,options?:RequestInit)=>Promise<T>;
 export type BackupUpdate<B extends BackupBook>={books:BackupEntry<B>[];cloudCount:number;restored:number;uploaded:number;downloaded:number;phase:'catalog'|'upload'|'download';title?:string};
 type Receipt<B extends BackupBook>=BackupEntry<B>&{revision:string;bytes:number;sha256:string;downloadUrl?:string};
@@ -10,8 +10,10 @@ export function createBackupLibrary<B extends BackupBook>(storage:BackupStorage<
  let batch:Promise<Result>|undefined;
  const transfers=new Map<string,Promise<unknown>>();
  type Result={books:BackupEntry<B>[];uploaded:number;downloaded:number;cloudCount:number;restored:number;progressUpdates:BackupEntry<B>[];missing:string[];errors:string[]};
- const all=()=>rows?Promise.resolve(rows):(loading??=storage.load().then(value=>rows=value));
- const mutate=(fn:(entries:BackupEntry<B>[])=>void)=>{const task=writes.catch(()=>{}).then(async()=>{const current=await all(),next=current.map(b=>({...b}));fn(next);await storage.save(next);rows=next;});writes=task;return task;};
+ // Transactional stores may be shared with another browser tab. Never serve their
+ // catalog from an instance-local cache, and apply changes inside the transaction.
+ const all=()=>storage.update?storage.load():rows?Promise.resolve(rows):(loading??=storage.load().then(value=>rows=value));
+ const mutate=(fn:(entries:BackupEntry<B>[])=>void)=>{const task=writes.catch(()=>{}).then(async()=>{if(storage.update){rows=await storage.update(fn);return;}const current=await all(),next=current.map(b=>({...b}));fn(next);await storage.save(next);rows=next;});writes=task;return task;};
  const find=async(id:string)=>(await all()).find(b=>b.id===id);
  const replace=(entries:BackupEntry<B>[],entry:BackupEntry<B>)=>{const {chapters,...rest}=entry;const safe={...rest,chapters:[]} as BackupEntry<B>;delete (safe as Record<string,unknown>).resources;delete (safe as Record<string,unknown>).pdf;const i=entries.findIndex(b=>b.id===entry.id);if(i<0)entries.push(safe);else entries[i]=safe;};
  const send=<T>(body:unknown)=>remote<T>('/api/backups',{method:'POST',body:JSON.stringify(body)});
@@ -26,15 +28,15 @@ export function createBackupLibrary<B extends BackupBook>(storage:BackupStorage<
  async function importBook(book:B){const body=validate(book);await storage.write(body);const coverUri=await storage.cover?.(body);await mutate(entries=>replace(entries,{...body,chapter:0,position:0,updatedAt:0,local:true,dirty:false,contentDirty:true,contentVersion:Date.now(),backedUp:false,chapterCount:body.chapters.length,coverUri,coverChecked:!!coverUri}));}
  async function progress(book:B,chapter:number,position:number,observedAt=Date.now()){
   if(!Number.isSafeInteger(observedAt)||observedAt<0||!Number.isInteger(chapter)||chapter<0||chapter>=book.chapters.length||!Number.isInteger(position)||position<0)throw Error('阅读进度无效。');
-  await mutate(entries=>{const old=entries.find(b=>b.id===book.id);if(old?.deleted||observedAt<Number(old?.localEventAt||0)||(old&&(old.chapter||0)===chapter&&(old.position||0)===position))return;replace(entries,{...(old||book),chapter,position,updatedAt:observedAt,localEventAt:observedAt,local:!book.sample,dirty:false});});
+  await mutate(entries=>{const old=entries.find(b=>b.id===book.id);if(old?.deleted||observedAt<Number(old?.localEventAt||0))return;if(old&&(old.chapter||0)===chapter&&(old.position||0)===position){old.localEventAt=observedAt;return;}replace(entries,{...(old||book),chapter,position,updatedAt:observedAt,localEventAt:observedAt,local:!book.sample,dirty:false});});
  }
  async function exclusive<T>(id:string,work:()=>Promise<T>):Promise<T>{if(transfers.has(id))throw Error('这本书正在上传或还原，请等待完成。');const task=work();transfers.set(id,task);try{return await task;}finally{transfers.delete(id);}}
- async function backup(id:string){return exclusive(id,async()=>{
+ async function backup(id:string,known?:ReadonlyMap<string,Receipt<B>>){return exclusive(id,async()=>{
   await writes;const body=await storage.read(id),found=await find(id),entry=found?{...found}:undefined;
   if(!body||!entry||entry.deleted||body.sample)throw Error('请先在此设备导入或下载这本书。');
   const snapshot={format:'tingye-backup',version:2,book:validate(body),progress:{chapter:entry.chapter||0,position:entry.position||0,updatedAt:entry.updatedAt||0}};
   const payload=JSON.stringify(snapshot),bytes=new TextEncoder().encode(payload).byteLength,sha256=digest(payload);
-  const existing=(await catalog()).find(b=>b.id===id);
+  const existing=known?known.get(id):(await catalog()).find(b=>b.id===id);
   if(existing?.sha256===sha256&&existing.bytes===bytes){await mutate(entries=>{const b=entries.find(e=>e.id===id);if(b){b.snapshotRevision=existing.revision;b.cloudRevision=existing.revision;b.backedUp=true;b.backupAt=existing.backupAt;b.contentDirty=false;}});return;}
   const signed=await send<{uploadId:string;url:string}>({action:'start',id,bytes,sha256,expectedRevision:entry.snapshotRevision||null});
   let receipt:Receipt<B>;
@@ -59,10 +61,10 @@ export function createBackupLibrary<B extends BackupBook>(storage:BackupStorage<
  async function remove(id:string){if(transfers.has(id))throw Error('请等待这本书的传输完成。');const entry=await find(id);if(!entry)return;await remote('/api/backups?id='+encodeURIComponent(id),{method:'DELETE'});await mutate(entries=>replace(entries,{...entry,deleted:true,dirty:false,local:false}));await storage.remove(id);}
  async function runBatch(mode:'upload'|'download',onUpdate?:(state:BackupUpdate<B>)=>void):Promise<Result>{
   if(batch)return batch;
-  batch=(async()=>{let uploaded=0,downloaded=0;const errors:string[]=[],progressUpdates:BackupEntry<B>[]=[];const cloud=await pull(),cloudIds=new Set(cloud.map(b=>b.id));
+  batch=(async()=>{let uploaded=0,downloaded=0;const errors:string[]=[],progressUpdates:BackupEntry<B>[]=[];const cloud=await pull(),cloudIds=new Set(cloud.map(b=>b.id)),known=new Map(cloud.map(b=>[b.id,b]));
    const notify=async(title?:string)=>onUpdate?.({books:await list(),cloudCount:cloudIds.size,restored:downloaded,uploaded,downloaded,phase:mode,title});
    await notify();const targets=mode==='upload'?(await all()).filter(b=>b.local&&!b.deleted&&!b.sample&&!b.id.startsWith('sample-')):cloud;
-   for(const target of targets){await notify(target.title);try{if(mode==='upload'){await backup(target.id);uploaded++;cloudIds.add(target.id);}else{const restored=await restore(target.id);downloaded++;progressUpdates.push(restored);}}catch(e){errors.push(target.title+'：'+(e instanceof Error?e.message:'传输失败'));}await notify();}
+   for(const target of targets){await notify(target.title);try{if(mode==='upload'){await backup(target.id,known);uploaded++;cloudIds.add(target.id);}else{const restored=await restore(target.id);downloaded++;progressUpdates.push(restored);}}catch(e){errors.push(target.title+'：'+(e instanceof Error?e.message:'传输失败'));}await notify();}
    return {books:await list(),uploaded,downloaded,cloudCount:cloudIds.size,restored:downloaded,progressUpdates,missing:[],errors};
   })().finally(()=>{batch=undefined;});return batch;
  }

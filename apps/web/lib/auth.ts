@@ -1,3 +1,4 @@
+import {clientIp} from './client-ip';
 import 'server-only';
 import {cookies} from 'next/headers';
 import {randomUUID,createHmac} from 'node:crypto';
@@ -14,7 +15,7 @@ export async function requestUser(req?:Request):Promise<User|null>{
 }
 export function sameOrigin(req:Request){const origin=req.headers.get('origin');const expected=new URL(process.env.APP_ORIGIN||req.url).origin;if((origin&&origin!==expected)||req.headers.get('sec-fetch-site')==='cross-site')throw new AuthError('请求来源不受支持。',403);}
 export async function rateLimit(key:string,limit:number,seconds:number,amount=1){const rows=await db()`insert into tingye.rate_limits(key,count,expires_at) values(${key},${amount},now()+${seconds}*interval '1 second') on conflict(key) do update set count=case when tingye.rate_limits.expires_at<now() then excluded.count else tingye.rate_limits.count+excluded.count end,expires_at=case when tingye.rate_limits.expires_at<now() then excluded.expires_at else tingye.rate_limits.expires_at end returning count`;if(rows[0].count>limit)throw new AuthError('请求过于频繁，请稍后重试。',429);}
-async function throttle(req:Request,name:string){const secret=process.env.AUTH_RATE_SECRET;if(!secret)throw new AuthError('账号服务尚未配置完成。',503);const ip=req.headers.get('x-vercel-forwarded-for')?.split(',')[0]?.trim()||req.headers.get('x-real-ip')||'local';const digest=createHmac('sha256',secret).update(ip).digest('hex');await rateLimit('auth-ip:'+digest,30,900);await rateLimit('auth-name:'+hash(name),12,900);}
+async function throttle(req:Request,name:string){const secret=process.env.AUTH_RATE_SECRET;if(!secret)throw new AuthError('账号服务尚未配置完成。',503);const ip=clientIp(req);const digest=createHmac('sha256',secret).update(ip).digest('hex');await rateLimit('auth-ip:'+digest,30,900);await rateLimit('auth-name:'+hash(name),12,900);}
 async function newSession(userId:string,expectedHash:string){const value=token(),expiresAt=Date.now()+30*86400000;await db().begin(async tx=>{const users=await tx`select id from tingye.accounts where id=${userId} and password_hash=${expectedHash} for share`;if(!users.length)throw new AuthError('密码已变更，请重新登录。',401);await tx`insert into tingye.sessions(digest,user_id,expires_at) values(${hash(value)},${userId},${new Date(expiresAt)})`;});return {token:value,expiresAt};}
 export async function authenticate(req:Request,body:Record<string,unknown>){
  sameOrigin(req);const name=username(body.username);password(body.password);await throttle(req,name);const sql=db();

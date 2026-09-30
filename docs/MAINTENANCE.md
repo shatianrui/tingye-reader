@@ -16,7 +16,11 @@ Android 1.6.4 / 16005 与 iOS 1.7.7 / 34 各自作为基线。未来可在测试
 4. 真机检查 EPUB 文字与插图、封面、字体重排、连续朗读、跨页高亮、设置后播放、后台与中断。Android 检查折叠和 DeX 缩放，iOS 检查 iPhone 16 Pro Max 安全区。
 5. 分别增加版本号并使用 CLI 构建。源码检查不等于真机验证或签名构建。
 
-web/scripts/verify-*-live.* 是显式运行的在线验证，跨端脚本会创建并清理临时账号、书籍、存储对象，需要目标环境配置；不在 CI 自动运行。优先测试环境。cleanup.mjs 会删除过期会话和废弃上传，不能当作无副作用检查。
+web/scripts/verify-*-live.* 是显式运行的在线验证，跨端脚本会创建并清理临时账号、书籍、存储对象，需要目标环境配置；不在 CI 自动运行。优先测试环境。cleanup.mjs 默认只读预览，使用 `--apply` 才会删除过期会话和废弃上传。
+
+登录 IP 限流只信任 `AUTH_IP_HEADER` 指定的单一 IP 头。腾讯云配置由 Caddy 覆盖 `X-Tingye-Client-IP` 为连接来源地址，并删除可伪造的其他 IP 头；应用不直接对公网开放。应用和 Caddy 配置需一起更新。若增加 CDN/其他代理，应先配置可信代理来源再调整取值，不能直接信任用户提供的 `X-Forwarded-For`。Vercel 部署可设置 `AUTH_IP_HEADER=x-vercel-forwarded-for`。
+
+依赖检查使用 `npm audit --audit-level=high`。Next.js 与 eslint-config-next 保持同版本。移动端对 `xcode` 的 `uuid` 依赖单独固定为兼容 CommonJS 的 11.1.1，修复 [GHSA-w5hq-g745-h8pq](https://github.com/uuidjs/uuid/security/advisories/GHSA-w5hq-g745-h8pq)；`tools/tests/xcode-compat.cjs` 覆盖实际调用的 v4 标识生成和项目文件往返读写。上游 xcode 更新依赖后可移除此覆盖，不要使用会降级 Expo SDK 的 `npm audit fix --force`。
 
 ## 发布记录
 

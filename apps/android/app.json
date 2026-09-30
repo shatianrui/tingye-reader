@@ -3,7 +3,7 @@
     "name": "微读",
     "slug": "we_reader_rn",
     "owner": "tianruisha",
-    "version": "1.8.0",
+    "version": "1.8.1",
     "orientation": "default",
     "icon": "./assets/tingye-icon-v2.png",
     "userInterfaceStyle": "light",
@@ -25,7 +25,7 @@
         "backgroundColor": "#173C35"
       },
       "predictiveBackGestureEnabled": false,
-      "versionCode": 18001,
+      "versionCode": 18101,
       "blockedPermissions": [
         "android.permission.RECORD_AUDIO",
         "android.permission.READ_MEDIA_AUDIO",

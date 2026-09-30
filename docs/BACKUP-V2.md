@@ -11,19 +11,34 @@
 - 三端共用 `packages/backup-core` 的实现，使用 `node tools/sync-backup-core.mjs` 生成平台内副本。CI 检查副本一致性，避免原生打包依赖仓库外路径。
 - `/api/backups` 只列出完整、已校验的备份。旧 `/api/books` 写入返回 426，提示升级。
 - 格式为 `tingye-backup` version 2，包含 `book` 和 `progress`，使用 UTF-8 JSON。
-- `start` 返回一次上传地址。上传后的 `complete` 校验字节数、SHA-256、书籍、进度与账号，并在一次数据库事务中发布正文和进度。中途失败不替换原备份。
+- `start` 返回有效期两小时的暂存上传地址，签名绑定字节数和 SHA-256。客户端仍只需 PUT 原始 UTF-8 JSON；请求体长度由网络库提供。链接在有效期内可重用，并非一次性。
+- `complete` 按预约大小流式读取（最多 50MB），校验字节数、SHA-256、书籍、进度和账号。验证后的原始字节写入客户端没有 PUT 权限的 `.verified.json` 路径，再以数据库事务发布。每个服务进程最多同时校验两个备份，繁忙时返回 429。失败不替换原备份，旧上传链接不能改写已发布文件。
 - 上传使用上一备份的 revision 作条件；其他设备已更新时返回冲突，要求先还原，不按手机时间决定谁覆盖谁。完成请求可安全重试。
 - 还原先验证完整文件和摘要，然后更新本机内容。已下载的书也会重新还原进度，不能只跳过已有文件。
 - 读取列表、获取下载地址和存储传输都有错误反馈。匿名签名存储请求不携带账号 Bearer token。
 - 每本完整备份最多 50MB，账号当前上限 500MB、200 本。超限时保留本机书籍并明确报错。
 
-新表为 `tingye.backups`、`tingye.backup_uploads`、`tingye.backup_garbage`。旧版本对象短暂保留，避免另一个设备正在下载时失效；过期版本在后续上传或维护清理时删除。运行 `scripts/cleanup.mjs` 前核对环境，它会清理过期数据。
+新表为 `tingye.backups`、`tingye.backup_uploads`、`tingye.backup_garbage`。旧版本对象短暂保留，避免另一个设备正在下载时失效；过期版本在后续上传或维护清理时删除。发布成功后尝试删除暂存文件，同时保留一天的垃圾标记，以便清理旧链接重传的文件。清理会跳过仍被已发布备份或有效上传引用的对象，只有存储删除成功才删除数据库标记。
+
+`scripts/cleanup.mjs` 与服务端共用 PostgreSQL/S3 配置，默认仅输出待清理对象数量。执行删除需要显式传入 `--apply`，已有定时清理任务也需要追加此参数：
+
+```sh
+cd apps/web
+node --env-file=.env.local scripts/cleanup.mjs
+node --env-file=.env.local scripts/cleanup.mjs --apply
+```
+
+Web 书架目录在 IndexedDB 的同一读写事务中读取并更新，多个标签页导入、刷新和保存进度不会用过期的整表快照覆盖其他标签页。保存进度携带观察时间，过时的写入被忽略。连续播放最多等待 700ms 即开始一次本地保存；切换书籍、退出、备份、还原和隐藏页面时尝试刷新待保存进度。浏览器强制终止时不能保证异步存储完成。
+
+批量上传每批只请求一次云端目录；服务端仍逐本校验 revision，目录缓存不会绕过冲突保护。
 
 ## 验证
 
 每端 `npm test` 包含完整备份、图片排版、三设备还原、已有副本替换、冲突、上传中断、响应丢失、内容损坏、账号隔离、时钟差异及重置后不会自动重新上传等用例。
 
 `apps/web/scripts/verify-backup-v2-live.mjs` 使用真实 Android / iOS 库模块、HTTP、数据库和私有存储，以临时账号检查双向恢复。设备文件系统被模拟，不等同于真机 UI 测试。旧 v1 同步测试保留为历史资料，`test:legacy-v1` 不代表新版契约。
+
+在线验证默认接受本地服务；测试远端环境需传入 `--allow-remote`。环境变量使用当前的 `DATABASE_URL`、`DATABASE_SSL`、`S3_*`，不再依赖 Supabase SDK。上传安全依据 [S3 预签名 URL](https://docs.aws.amazon.com/AmazonS3/latest/userguide/using-presigned-url.html) 和 [PutObject 校验参数](https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutObject.html)。
 
 本次迁移保留账号和设备本地书籍，清理的范围仅为用户已授权的旧云端备份。不能自动清空其他账号的数据。
 

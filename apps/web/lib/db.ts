@@ -1,9 +1,7 @@
 import 'server-only';
 import postgres from 'postgres';
+import {databaseUrl,databaseOptions} from './server-config.mjs';
 let client: ReturnType<typeof postgres> | undefined;
 export function db() {
- const url=process.env.DATABASE_URL||process.env.POSTGRES_URL;
- if(!url)throw new Error('账号服务尚未配置完成。');
- const ssl=process.env.DATABASE_SSL==='require'?'require':false;
- return client??=postgres(url,{max:3,prepare:false,idle_timeout:20,connect_timeout:15,ssl});
+ return client??=postgres(databaseUrl(),{...databaseOptions(),idle_timeout:20,connect_timeout:15});
 }

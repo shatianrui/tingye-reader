@@ -44,6 +44,10 @@ COPY --from=builder --chown=node:node /app/public ./public
 COPY --from=builder --chown=node:node /app/db ./db
 COPY --from=builder --chown=node:node /app/scripts/migrate.mjs ./scripts/migrate.mjs
 COPY --from=builder --chown=node:node /app/scripts/start-production.mjs ./scripts/start-production.mjs
+COPY --from=builder --chown=node:node /app/scripts/cleanup.mjs ./scripts/cleanup.mjs
+COPY --from=builder --chown=node:node /app/scripts/create-invite.mjs ./scripts/create-invite.mjs
+COPY --from=builder --chown=node:node /app/lib/server-config.mjs ./lib/server-config.mjs
+COPY --from=builder --chown=node:node /app/lib/cleanup.mjs ./lib/cleanup.mjs
 USER node
 EXPOSE 5174
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
