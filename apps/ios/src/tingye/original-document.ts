@@ -51,20 +51,24 @@ export async function originalChapter(source:string,title:string,path='',resourc
   for(const child of n.children||[])visit(child);
  };visit(root);await Promise.all(pending);
  let text='';const newline=()=>{if(text&&!text.endsWith('\n'))text+='\n';};
- const render=(n:any,pre=false,inSvg=false):string=>{
-  if(n.type==='text'){const value=pre?n.data:n.data.replace(/[\t\r\n ]+/g,' ');if(!value.trim()&&!pre){if(!text||text.endsWith('\n'))return '';}
+ // Ruby annotations (<rt>/<rp>) are displayed but are not body text: narrating
+ // them reads every annotated word twice and drifts the highlight.
+ const render=(n:any,pre=false,inSvg=false,annotation=false):string=>{
+  if(n.type==='text'){const value=pre?n.data:n.data.replace(/[\t\r\n ]+/g,' ');if(annotation)return escapeHtml(value);if(!value.trim()&&!pre){if(!text||text.endsWith('\n'))return '';}
    const start=text.length;text+=value;const tag=inSvg?'tspan':'span';return `<${tag} data-pos="${start}">${escapeHtml(value)}</${tag}>`;}
   const tag=String(n.name||'').toLowerCase(),a=n.attribs||{};
   if(blocked.has(tag))return '';if(a.hidden!==undefined||/display\s*:\s*none/i.test(a.style||''))return '';
-  if(!tag||tag==='html')return (n.children||[]).map((c:any)=>render(c,pre)).join('');
-  if(!allowed.has(tag))return (n.children||[]).map((c:any)=>render(c,pre)).join('');
-  if(block.test(tag))newline();if(tag==='br')text+='\n';
+  if(!tag||tag==='html')return (n.children||[]).map((c:any)=>render(c,pre,inSvg,annotation)).join('');
+  if(!allowed.has(tag))return (n.children||[]).map((c:any)=>render(c,pre,inSvg,annotation)).join('');
+  if(block.test(tag))newline();if(tag==='br'&&!annotation)text+='\n';
+  // Adjacent table cells must not merge into one word for narration.
+  if((tag==='td'||tag==='th')&&!annotation&&text&&!/\s$/.test(text))text+=' ';
   let attrs='';for(const [key,v] of Object.entries(a)){const value=String(v);if(/^(id|class|title|alt|lang|dir|width|height|colspan|rowspan|start|type|viewbox|preserveaspectratio|d|fill|stroke|stroke-width|x|y|x1|x2|y1|y2|cx|cy|r|rx|ry|points|transform|offset|xmlns)$/.test(key))attrs+=` ${key==='viewbox'?'viewBox':key==='preserveaspectratio'?'preserveAspectRatio':key}="${escapeHtml(value)}"`;}
   if(a.style)attrs+=` style="${escapeHtml(safeCss(a.style,urlMap,true))}"`;
   if(tag==='img'||tag==='image'){const raw=a.src||a['xlink:href']||a.href||'',uri=urlMap.get(raw)||(/^(?:tingye-resource:r\d+|data:image\/(?:png|jpeg|gif|webp|avif);base64,[a-z\d+/=\s]+)$/i.test(raw)?raw:'');if(!uri)return `<span class="missing-image">[${escapeHtml(a.alt||'图片资源缺失')}]</span>`;attrs+=` ${tag==='img'?'src':'href'}="${escapeHtml(uri)}"`;}
   if(tag==='a'&&a.href&&!/^(?:[a-z][\w+.-]*:|\/\/)/i.test(a.href))attrs+=` href="${escapeHtml(a.href)}"`;
   if(tag==='use'&&/^#[\w.-]+$/.test(a.href||a['xlink:href']||''))attrs+=` href="${escapeHtml(a.href||a['xlink:href'])}"`;
-  const children=(n.children||[]).map((c:any)=>render(c,pre||tag==='pre',inSvg||tag==='svg')).join('');if(block.test(tag))newline();
+  const children=(n.children||[]).map((c:any)=>render(c,pre||tag==='pre',inSvg||tag==='svg',annotation||tag==='rt'||tag==='rp')).join('');if(block.test(tag))newline();
   const svgNames:Record<string,string>={clippath:'clipPath',lineargradient:'linearGradient',radialgradient:'radialGradient'};
   const name=tag==='body'?'article':svgNames[tag]||tag;return `<${name}${attrs}>${children}${['img','br','hr','col'].includes(tag)?'':`</${name}>`}`;
  };

@@ -7,6 +7,7 @@ import {withTtsRetry} from './tts-retry';
 import { type Book } from './books';
 import { narrationGroups, sentenceRanges, CLOUD_GROUP_CHARS, CLOUD_FIRST_GROUP_CHARS } from './pagination';
 import { wavEnvelope, estimatedSpeechOffset, type SpeechEnvelope } from './speech-progress';
+import {speakableText} from './speech-text';
 import {mapTimedWords,speechMarkAt,pageOffsetWithinMark,type SpeechMark,type TimedWord} from './speech-timing';
 import {prepareSpeechAlignment,alignSpeechFile} from './native-speech-alignment';
 import type { VoiceConfig } from './voices';
@@ -197,7 +198,7 @@ class ReaderPlayer {
             if(generation!==this.generation)return;
             const base=cursor;
             this.speaking=true;
-            finished=await new Promise<boolean>((resolve,reject)=>Speech.speak(item.text.slice(base),{language:'zh-CN',voice:config.voice||undefined,rate:this.rate,useApplicationAudioSession:true,onBoundary:(event:{charIndex:number;charLength?:number})=>{if(generation===this.generation&&!this.state.paused&&'charIndex' in event){cursor=Math.min(item.text.length-1,base+event.charIndex);move(item,item.start+cursor);}},onDone:()=>resolve(true),onStopped:()=>resolve(false),onError:()=>reject(new Error('系统语音无法播放，请更换音色。'))}));
+            finished=await new Promise<boolean>((resolve,reject)=>Speech.speak(speakableText(item.text).slice(base),{language:'zh-CN',voice:config.voice||undefined,rate:this.rate,useApplicationAudioSession:true,onBoundary:(event:{charIndex:number;charLength?:number})=>{if(generation===this.generation&&!this.state.paused&&'charIndex' in event){cursor=Math.min(item.text.length-1,base+event.charIndex);move(item,item.start+cursor);}},onDone:()=>resolve(true),onStopped:()=>resolve(false),onError:()=>reject(new Error('系统语音无法播放，请更换音色。'))}));
             if(generation===this.generation)this.speaking=false;
           }
           if(generation!==this.generation)return;
@@ -221,13 +222,13 @@ class ReaderPlayer {
           const controller=new AbortController(),cancel=()=>controller.abort();
           alignments.set(item,controller);signal.addEventListener('abort',cancel,{once:true});
           try{
-            const marks=await alignSpeechFile(held.audio.file.uri,item.text,controller.signal);
+            const marks=await alignSpeechFile(held.audio.file.uri,speakableText(item.text),controller.signal);
             if(!signal.aborted&&!controller.signal.aborted&&generation===this.generation&&items.indexOf(item)>playedThrough&&marks.length){item.marks=marks;held.audio.marks=marks;}
           }finally{signal.removeEventListener('abort',cancel);alignments.delete(item);held.release();}
         }).catch(()=>{/* Alignment failure cannot stop otherwise valid audio. */});
       };
       const synth = async (item: Position) => {
-        const key=JSON.stringify(['word-timing-v1',book.id,config.provider,config.model,config.voice,item.text]);
+        const key=JSON.stringify(['word-timing-v1',book.id,config.provider,config.model,config.voice,speakableText(item.text)]);
         const hit=this.cache.acquire(key);
         if(hit){
           this.leases.push(hit);item.envelope=hit.audio.envelope;item.marks=hit.audio.marks;
@@ -238,7 +239,7 @@ class ReaderPlayer {
         const bytes=await withTtsRetry(async requestSignal=>{
           let bytes:Uint8Array;
           const direct=config.provider==='minimax';
-          const fetchClip=(delivery?:'url')=>request('/api/tts',{method:'POST',body:JSON.stringify({provider:config.provider,model:config.model,voice:config.voice,input:item.text,timing:true,...(delivery?{delivery}:{})}),signal:requestSignal});
+          const fetchClip=(delivery?:'url')=>request('/api/tts',{method:'POST',body:JSON.stringify({provider:config.provider,model:config.model,voice:config.voice,input:speakableText(item.text),timing:true,...(delivery?{delivery}:{})}),signal:requestSignal});
           let response = await fetchClip(direct?'url':undefined);
           if(response.headers?.get('content-type')?.includes('application/json')){
             let data=await response.json() as {audio?:string;words?:TimedWord[];delivery?:string;url?:string;subtitleUrl?:string};

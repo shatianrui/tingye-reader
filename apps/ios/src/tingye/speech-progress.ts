@@ -1,3 +1,5 @@
+import {speakableText} from './speech-text';
+
 // An estimate for providers returning audio without word timestamps. This
 // analyzes a read-only WAV envelope; the actual audio bytes are never cut.
 export type SpeechEnvelope = { duration: number; cumulative: number[]; total: number };
@@ -38,7 +40,9 @@ export function estimatedSpeechOffset(text:string,start:number,currentTime:numbe
     const i=Math.floor(point),a=envelope.cumulative[i],b=envelope.cumulative[Math.min(i+1,envelope.cumulative.length-1)];
     ratio=(a+(b-a)*(point-i))/envelope.total;
   }
-  const units=Array.from(text).map(char=>({char,weight:/\s/u.test(char)?.08:/[，,、；;：:]/u.test(char)?.4:/[。.!！？?]/u.test(char)?.7:/[“”‘’"「」『』]/u.test(char)?0:/[a-z]/iu.test(char)?.38:1}));
+  // Symbols the engine never voices take no time, or the cursor runs ahead.
+  const voiced=speakableText(text);let at=0;
+  const units=Array.from(text).map(char=>{const silent=voiced[at]===' '&&!/\s/u.test(char);at+=char.length;return {char,silent};}).map(({char,silent})=>({char,weight:silent?0:/\s/u.test(char)?.08:/[，,、；;：:]/u.test(char)?.4:/[。.!！？?]/u.test(char)?.7:/[“”‘’"「」『』]/u.test(char)?0:/[a-z]/iu.test(char)?.38:1}));
   const target=units.reduce((sum,u)=>sum+u.weight,0)*ratio;
   let spoken=0,offset=start;
   for(const unit of units){if(spoken+unit.weight>target+1e-9)break;spoken+=unit.weight;offset+=unit.char.length;}

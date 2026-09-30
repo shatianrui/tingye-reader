@@ -38,13 +38,55 @@ export function docxHtml(xml:string,images:Record<string,string>={}){
  }).join('');
 }
 
+// CommonMark-ish subset. Syntax must become formatting, never body text: every
+// character left in the document is displayed, narrated and highlighted.
 export function markdownHtml(text:string){
  const escape=(s:string)=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
- const inline=(s:string)=>escape(s).replace(/!\[([^\]]*)\]\([^)]*\)/g,'$1').replace(/\[([^\]]+)\]\([^)]*\)/g,'$1').replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>').replace(/\*([^*]+)\*/g,'<em>$1</em>');
- let code=false,paragraph:string[]=[],out:string[]=[];
- const flush=()=>{if(paragraph.length)out.push('<p>'+paragraph.join(' ')+'</p>');paragraph=[];};
- for(const line of text.replace(/\r\n?/g,'\n').split('\n')){if(/^```/.test(line)){flush();out.push(code?'</pre>':'<pre>');code=!code;continue;}if(code){out.push(escape(line)+'\n');continue;}if(!line.trim()){flush();continue;}const h=line.match(/^(#{1,6})\s+(.+)/);if(h){flush();out.push(`<h${h[1].length}>${inline(h[2])}</h${h[1].length}>`);}else if(/^>\s?/.test(line)){flush();out.push('<blockquote>'+inline(line.replace(/^>\s?/,''))+'</blockquote>');}else if(/^\s*(?:[-*+] |\d+\. )/.test(line)){flush();out.push('<li>'+inline(line.replace(/^\s*(?:[-*+] |\d+\. )/,''))+'</li>');}else paragraph.push(inline(line));}
- flush();if(code)out.push('</pre>');return out.join('');
+ const inline=(source:string)=>{
+  const kept:string[]=[],keep=(html:string)=>`${kept.push(html)-1}`;
+  let s=source.replace(/\\([\\`*_{}[\]()#+\-.!|~<>])/g,(_,c)=>keep(escape(c)));
+  s=s.replace(/(`+)([\s\S]*?[^`])\1(?!`)/g,(_,__,code)=>keep('<code>'+escape(code.trim())+'</code>'));
+  s=s.replace(/<(https?:\/\/[^\s>]+)>/g,(_,url)=>keep(escape(url)));
+  s=s.replace(/<(\/?)(br|b|i|em|strong|u|s|sub|sup|small|code)\s*\/?>/gi,(_,close,tag)=>keep(`<${close}${tag.toLowerCase()}>`));
+  s=s.replace(/<!--[\s\S]*?-->/g,'');
+  s=escape(s);
+  s=s.replace(/!\[([^\]]*)\]\([^)]*\)/g,'$1').replace(/\[([^\]]+)\]\([^)]*\)/g,'$1').replace(/\[([^\]]+)\]\[[^\]]*\]/g,'$1');
+  s=s.replace(/\[\^([^\]\s]+)\]/g,'<sup>$1</sup>');
+  s=s.replace(/(\*\*|__)(?=\S)([\s\S]*?\S)\1/g,'<strong>$2</strong>').replace(/~~(?=\S)([\s\S]*?\S)~~/g,'<s>$1</s>');
+  s=s.replace(/\*(?=\S)([^*]*?\S)\*/g,'<em>$1</em>').replace(/(^|[^\p{L}\p{N}_])_(?=\S)([^_]*?\S)_(?![\p{L}\p{N}_])/gu,'$1<em>$2</em>');
+  return s.replace(/(\d+)/g,(_,i)=>kept[Number(i)]);
+ };
+ const lines=text.replace(/^﻿/,'').replace(/\r\n?/g,'\n').replace(/<!--[\s\S]*?-->/g,'').split('\n');
+ const cells=(row:string)=>row.trim().replace(/^\|/,'').replace(/\|$/,'').split(/(?<!\\)\|/).map(c=>inline(c.trim()));
+ const separator=/^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/;
+ let paragraph:string[]=[],list:'ul'|'ol'|'',out:string[]=[];list='';
+ const flush=()=>{if(paragraph.length)out.push('<p>'+paragraph.map((l,i)=>i<paragraph.length-1&&/( {2,}|\\)$/.test(l)?inline(l.replace(/( {2,}|\\)$/,''))+'<br>':inline(l.trim())).join(' ')+'</p>');paragraph=[];};
+ const closeList=()=>{if(list)out.push(`</${list}>`);list='';};
+ for(let i=0;i<lines.length;i++){
+  const line=lines[i];
+  const fence=line.match(/^\s{0,3}(`{3,}|~{3,})/);
+  if(fence){flush();closeList();const body:string[]=[];for(i++;i<lines.length&&!lines[i].trim().startsWith(fence[1]);i++)body.push(lines[i]);out.push('<pre><code>'+escape(body.join('\n'))+'</code></pre>');continue;}
+  if(!line.trim()){flush();closeList();continue;}
+  const next=lines[i+1]??'';
+  if(paragraph.length===0&&/^\s{0,3}[^\s>#|-]/.test(line)&&/^\s{0,3}(=+|-+)\s*$/.test(next)&&!/^\s{0,3}([-*_])(\s*\1){2,}\s*$/.test(line)){closeList();const level=next.trim()[0]==='='?1:2;out.push(`<h${level}>${inline(line.trim())}</h${level}>`);i++;continue;}
+  if(/^\s{0,3}([-*_])(\s*\1){2,}\s*$/.test(line)){flush();closeList();out.push('<hr>');continue;}
+  const h=line.match(/^\s{0,3}(#{1,6})\s+(.*?)\s*#*\s*$/);
+  if(h){flush();closeList();out.push(`<h${h[1].length}>${inline(h[2])}</h${h[1].length}>`);continue;}
+  if(line.includes('|')&&separator.test(next)&&next.includes('-')){
+   flush();closeList();const rows=[`<tr>${cells(line).map(c=>`<th>${c}</th>`).join('')}</tr>`];
+   for(i+=2;i<lines.length&&lines[i].includes('|')&&lines[i].trim();i++)rows.push(`<tr>${cells(lines[i]).map(c=>`<td>${c}</td>`).join('')}</tr>`);
+   i--;out.push(`<table>${rows.join('')}</table>`);continue;
+  }
+  const quote=line.match(/^\s{0,3}(?:>\s?)+(.*)$/);
+  if(quote){flush();closeList();if(quote[1].trim())out.push('<blockquote><p>'+inline(quote[1])+'</p></blockquote>');continue;}
+  const item=line.match(/^\s*([-*+]|\d{1,9}[.)])\s+(.*)$/);
+  if(item){flush();const kind=/\d/.test(item[1])?'ol':'ul';if(list!==kind){closeList();list=kind;out.push(`<${kind}>`);}
+   const task=item[2].match(/^\[([ xX])\]\s+(.*)$/);out.push('<li>'+(task?(task[1]===' '?'☐ ':'☑ ')+inline(task[2]):inline(item[2]))+'</li>');continue;}
+  const note=line.match(/^\s{0,3}\[\^([^\]]+)\]:\s*(.*)$/);
+  if(note){flush();closeList();out.push(`<p><small><sup>${escape(note[1])}</sup> ${inline(note[2])}</small></p>`);continue;}
+  closeList();paragraph.push(line);
+ }
+ flush();closeList();return out.join('');
 }
 
 export function validFormatting(c:Chapter):Pick<Chapter,'blocks'|'marks'>{
