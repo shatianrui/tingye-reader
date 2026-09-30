@@ -9,9 +9,10 @@ function harness(blockPrefetch=false,androidSpeech=false,control={}){
  const pending=[],requests=[],playlists=[],files=new Map();
  const compile=file=>ts.transpileModule(fs.readFileSync(path.join(__dirname,'../src/tingye',file),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
  const books={exports:{}};vm.runInNewContext(compile('books.ts'),{exports:books.exports,module:books});
- const pagination={exports:{}};vm.runInNewContext(compile('pagination.ts'),{exports:pagination.exports,module:pagination,require:()=>books.exports});
+ const speechText={exports:{}};vm.runInNewContext(compile('speech-text.ts'),{exports:speechText.exports,module:speechText});
+ const pagination={exports:{}};vm.runInNewContext(compile('pagination.ts'),{exports:pagination.exports,module:pagination,require:id=>id==='./speech-text'?speechText.exports:books.exports});
  const timing={exports:{}};vm.runInNewContext(compile('speech-timing.ts'),{exports:timing.exports,module:timing});
- const progress={exports:{}};vm.runInNewContext(compile('speech-progress.ts'),{exports:progress.exports,module:progress});
+ const progress={exports:{}};vm.runInNewContext(compile('speech-progress.ts'),{exports:progress.exports,module:progress,require:()=>speechText.exports});
  const filesystem={Paths:{cache:'file:///cache'},File:class{constructor(base,name){this.uri=(typeof base==='string'?base:base.uri)+(name?'/'+name:'');}get exists(){return files.has(this.uri);}write(bytes){files.set(this.uri,bytes);}delete(){files.delete(this.uri);}},Directory:class{constructor(base,name){this.uri=base+'/'+name;}create(){}list(){return [...files.keys()].filter(uri=>uri.startsWith(this.uri+'/')).map(uri=>new filesystem.File(uri));}}};
  const cache={exports:{}};vm.runInNewContext(compile('audio-cache.ts'),{exports:cache.exports,module:cache,require:()=>filesystem});
  const policy={exports:{}};vm.runInNewContext(compile('audio-buffer-policy.ts'),{exports:policy.exports,module:policy});
@@ -26,6 +27,7 @@ function harness(blockPrefetch=false,androidSpeech=false,control={}){
    if(id==='./pagination')return pagination.exports;
    if(id==='./speech-progress')return progress.exports;
    if(id==='./speech-timing')return timing.exports;
+   if(id==='./speech-text')return speechText.exports;
    if(id==='./native-speech-alignment')return {prepareSpeechAlignment:async()=>control.permission?control.permission():control.nativeAlignment!==false,alignSpeechFile:async(uri,text,signal)=>{if(control.align)return control.align(uri,text,signal);let time=0,offset=0;return Array.from(text).flatMap(char=>{const duration=/\s/u.test(char)?.08:/[。.!！？?]/u.test(char)?.7:1;const mark={start:offset,end:offset+char.length,startTime:time,endTime:time+duration};time+=duration;offset+=char.length;return /\s/.test(char)?[]:[mark];});}};
    if(id==='./audio-cache')return cache.exports;
    if(id==='./audio-buffer-policy')return policy.exports;
