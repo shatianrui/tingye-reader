@@ -53,6 +53,11 @@ const a = 1;
  // No Markdown syntax survives as body text (escaped \* is intended content).
  for(const junk of ['**','__','~~','`','---','|','[ ]','[x]','](','<br>','<!--','======','[^1]','#'])assert.ok(!md.text.includes(junk),`markdown text still contains ${junk}: ${JSON.stringify(md.text)}`);
  for(const kept of ['加粗','斜体','代码','下划线','删除线','snake_case_name','听页','https://example.com','第一项','☐ 待办','☑ 完成','有序二','列一 列二','甲 乙','引用一句。','标题二','const a = 1;','之后*转义星号*','脚注内容'])assert.ok(md.text.includes(kept),`markdown lost ${kept}`);
+ // Comment syntax is content inside code: only comments in prose are dropped.
+ const code=await originalChapter(markdownHtml('行内 `<!-- keep -->` 代码。\n\n<!--\n多行注释\n-->\n\n```html\n<!-- fenced -->\n```\n\n<!-- a --> 注释后正文。'),'code');
+ assert.ok(code.text.includes('<!-- keep -->')&&code.text.includes('<!-- fenced -->'),`code lost comment text: ${JSON.stringify(code.text)}`);
+ assert.ok(!code.text.includes('多行注释')&&!code.text.includes('<!-- a -->')&&code.text.includes('注释后正文。'));
+ assertAligned(code,'markdown code');
  assert.match(md.document.html,/<h1>.*第一章 春天.*<\/h1>/);assert.match(md.document.html,/<table>/);assert.match(md.document.html,/<hr>/);assert.match(md.document.html,/<s>.*删除线.*<\/s>/);
 
  // Other formats keep the same invariant.
@@ -70,7 +75,12 @@ const a = 1;
  const table='| 甲 | 乙 |\n| --- | --- |\n正文 **一句**。';
  assert.equal(speakableText(table).length,table.length);
  assert.ok(!/[|*]|--/.test(speakableText(table)));
- assert.equal(speakableText('COVID-19 与 2026-09-30'),'COVID-19 与 2026-09-30','single hyphens are words, not markup');
+ // Only markup patterns are silenced; the same characters as content are voiced.
+ for(const content of ['COVID-19 与 2026-09-30','C# 与 F#','x*y','2 < 3 且 5 > 4','1+1=2','snake_case','参见[1]','a|b','~1'])assert.equal(speakableText(content),content,`content symbol silenced: ${content}`);
+ assert.equal(speakableText('# 标题\n- 列表\n> 引用\n**粗** ~~删~~ `码` [ ] 待办 注[^1] <br> <!-- x -->').replace(/\s+/g,' ').trim(),'标题 列表 引用 粗 删 码 待办 注');
+ // A start offset past the last voiced character leaves nothing to synthesize.
+ assert.equal(narrationGroups('甲***',1).length,0,'markup-only remainder is not queued as an empty utterance');
+ assert.equal(narrationGroups('甲***',0).length,1);
  assert.ok(!hasSpeech('| --- | --- |')&&!hasSpeech('======')&&hasSpeech('甲'));
  const groups=narrationGroups(table);
  assert.ok(groups.every(g=>hasSpeech(g.text)),'symbol-only sentences are skipped');

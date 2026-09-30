@@ -56,7 +56,7 @@ export function markdownHtml(text:string){
   s=s.replace(/\*(?=\S)([^*]*?\S)\*/g,'<em>$1</em>').replace(/(^|[^\p{L}\p{N}_])_(?=\S)([^_]*?\S)_(?![\p{L}\p{N}_])/gu,'$1<em>$2</em>');
   return s.replace(/(\d+)/g,(_,i)=>kept[Number(i)]);
  };
- const lines=text.replace(/^﻿/,'').replace(/\r\n?/g,'\n').replace(/<!--[\s\S]*?-->/g,'').split('\n');
+ const lines=text.replace(/^﻿/,'').replace(/\r\n?/g,'\n').split('\n');
  const cells=(row:string)=>row.trim().replace(/^\|/,'').replace(/\|$/,'').split(/(?<!\\)\|/).map(c=>inline(c.trim()));
  const separator=/^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/;
  let paragraph:string[]=[],list:'ul'|'ol'|'',out:string[]=[];list='';
@@ -66,6 +66,8 @@ export function markdownHtml(text:string){
   const line=lines[i];
   const fence=line.match(/^\s{0,3}(`{3,}|~{3,})/);
   if(fence){flush();closeList();const body:string[]=[];for(i++;i<lines.length&&!lines[i].trim().startsWith(fence[1]);i++)body.push(lines[i]);out.push('<pre><code>'+escape(body.join('\n'))+'</code></pre>');continue;}
+  // HTML comments are dropped outside code only (fences above, spans in inline()).
+  if(/^\s*<!--/.test(line)){let j=i;while(j<lines.length&&!lines[j].includes('-->'))j++;const rest=j<lines.length?lines[j].slice(lines[j].indexOf('-->')+3):'';if(j<lines.length&&rest.trim()){lines[j]=rest;i=j-1;}else i=j;continue;}
   if(!line.trim()){flush();closeList();continue;}
   const next=lines[i+1]??'';
   if(paragraph.length===0&&/^\s{0,3}[^\s>#|-]/.test(line)&&/^\s{0,3}(=+|-+)\s*$/.test(next)&&!/^\s{0,3}([-*_])(\s*\1){2,}\s*$/.test(line)){closeList();const level=next.trim()[0]==='='?1:2;out.push(`<h${level}>${inline(line.trim())}</h${level}>`);i++;continue;}

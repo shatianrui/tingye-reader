@@ -31,10 +31,11 @@ export function pageForOffset(ends: number[], offset: number) {
 // sentence trims its opening text; subsequent sentences remain intact.
 export function speechSegments(text: string, startOffset = 0) {
   // Symbol-only sentences (Markdown rules, table separators) are skipped, not voiced.
-  return sentenceRanges(text).filter(range=>range.end>startOffset&&hasSpeech(range.text)).map(range=>{
+  // Checked after the start offset trims the sentence: its remainder may be markup only.
+  return sentenceRanges(text).filter(range=>range.end>startOffset).map(range=>{
     const start=Math.max(startOffset,range.start),raw=text.slice(start,range.end),content=raw.trimStart();
     return {text:content,position:range.index,start:start+raw.length-content.length,end:range.end};
-  });
+  }).filter(segment=>hasSpeech(segment.text));
 }
 
 // Cloud synthesis latency grows with clip length (a 400-character GLM clip took
