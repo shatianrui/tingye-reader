@@ -1,6 +1,6 @@
 {
   "name": "we_reader_rn",
-  "version": "1.8.0",
+  "version": "1.8.1",
   "main": "index.ts",
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",
@@ -45,11 +45,16 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
-    "test": "node tests/player-queue.cjs && node tests/import-book.cjs && node tests/account-login.cjs && node tests/typesetting.cjs && node tests/book-covers.cjs && node tests/library-presentation.cjs && node tests/backup-v2.cjs",
+    "test": "node tests/player-queue.cjs && node tests/import-book.cjs && node tests/account-login.cjs && node tests/typesetting.cjs && node tests/book-covers.cjs && node tests/library-presentation.cjs && node tests/backup-v2.cjs && node ../../tools/tests/xcode-compat.cjs",
     "build:apk": "pwsh -NoProfile -ExecutionPolicy Bypass -File tools/build-local.ps1",
     "build:reader": "node tools/build-reader-assets.cjs",
     "test:reader": "node tests/original-pages.cjs",
     "test:legacy-v1": "node tests/native-library.cjs"
   },
-  "private": true
+  "private": true,
+  "overrides": {
+    "xcode": {
+      "uuid": "11.1.1"
+    }
+  }
 }

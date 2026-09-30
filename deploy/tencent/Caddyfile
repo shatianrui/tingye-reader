@@ -7,5 +7,9 @@ www.{$DOMAIN} {
 	handle /tingye-books/* {
 		reverse_proxy minio:9000
 	}
-	reverse_proxy app:5174
+	reverse_proxy app:5174 {
+		header_up X-Tingye-Client-IP {remote_host}
+		header_up -X-Real-IP
+		header_up -X-Vercel-Forwarded-For
+	}
 }

@@ -27,5 +27,8 @@ jobs:
         run: npx next typegen
       - run: npm run typecheck
       - run: npm test
+      - run: npm audit --audit-level=high
+      - if: matrix.app == 'web'
+        run: npm run build
       - if: matrix.app != 'web'
         run: npm run build:reader

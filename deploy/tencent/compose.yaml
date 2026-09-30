@@ -39,6 +39,7 @@ services:
       - .env.server
     environment:
       APP_ORIGIN: https://${DOMAIN}
+      AUTH_IP_HEADER: x-tingye-client-ip
       DATABASE_URL: postgres://tingye:${POSTGRES_PASSWORD}@postgres:5432/tingye
       DATABASE_SSL: disable
       S3_ENDPOINT: http://minio:9000

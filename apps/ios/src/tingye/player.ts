@@ -18,6 +18,7 @@ type Position = ReturnType<typeof narrationGroups>[number] & { chapter: number; 
 type PlaybackLayout = { startOffset: number; paused?: boolean };
 export type ReadingCursor = { chapter: number; position: number; offset: number; start: number; end: number };
 type State = { active: boolean; paused: boolean; buffering: boolean; chapter: number; position: number; cursor?: ReadingCursor; error: string;timingNotice?:string };
+type PlayerStatus = Omit<State, 'cursor'>;
 // A 30 s MiniMax clip is ~1 MB of hex. Regex splitting plus parseInt allocates
 // one string per byte and stalls the JS thread that services the audio queue.
 export function hexBytes(hex:string){
@@ -67,6 +68,7 @@ async function directMinimaxAudio(data:{url?:unknown;subtitleUrl?:unknown},paren
 }
 class ReaderPlayer {
   private listeners = new Set<() => void>();
+  private playbackListeners = new Set<() => void>();
   private generation = 0;
   private abort: AbortController | null = null;
   private playlist: ReturnType<typeof createAudioPlaylist> | null = null;
@@ -79,10 +81,19 @@ class ReaderPlayer {
   private speechStopped: Promise<void> = Promise.resolve();
   private rate = 1;
   private state: State = { active: false, paused: false, buffering: false, chapter: 0, position: 0, error: '' };
+  private status: PlayerStatus = this.state;
   onPosition: ((chapter: number, position: number, offset: number) => void) | null = null;
   subscribe = (callback: () => void) => { this.listeners.add(callback); return () => { this.listeners.delete(callback); }; };
+  subscribePlayback = (callback: () => void) => { this.playbackListeners.add(callback); return () => { this.playbackListeners.delete(callback); }; };
   snapshot = () => this.state;
-  private update(patch: Partial<State>) { this.state = { ...this.state, ...patch }; this.listeners.forEach(f=>f()); }
+  statusSnapshot = () => this.status;
+  private update(patch: Partial<State>) {
+    this.state = { ...this.state, ...patch };
+    const {cursor, ...status} = this.state;
+    if ((Object.keys(status) as (keyof PlayerStatus)[]).some(key => status[key] !== this.status[key])) this.status = status;
+    this.playbackListeners.forEach(f=>f());
+    this.listeners.forEach(f=>f());
+  }
   stop() {
     this.generation++;
     this.refill=null;
@@ -292,7 +303,7 @@ class ReaderPlayer {
           if(!contiguous||(!complete&&contiguous<2&&!safeFirst)){
             if(failed.has(contiguous))fatal(failed.get(contiguous));return;
           }
-          playlist=createAudioPlaylist({sources:Array.from({length:contiguous},(_,i)=>({uri:prepared.get(i)!.audio.file.uri})),updateInterval:100});
+          playlist=createAudioPlaylist({sources:Array.from({length:contiguous},(_,i)=>({uri:prepared.get(i)!.audio.file.uri})),updateInterval:50});
           this.playlist=playlist;playlist.playbackRate=this.rate;queued=contiguous;
           playlist.addListener('playlistStatusUpdate',status=>{
             if(generation!==this.generation||!playlist)return;
@@ -376,5 +387,7 @@ class ReaderPlayer {
   }
 }
 export const readerPlayer=new ReaderPlayer();
-export function usePlayer(){return useSyncExternalStore(readerPlayer.subscribe,readerPlayer.snapshot);}
+// Controls need sentence/state changes; per-character positions go straight to
+// the WebView through connectPlayback instead of rendering the entire library.
+export function usePlayer(){return useSyncExternalStore(readerPlayer.subscribe,readerPlayer.statusSnapshot);}
 

@@ -5,18 +5,18 @@ import {createRequire} from 'node:module';
 import {randomUUID,randomBytes,createHash} from 'node:crypto';
 import assert from 'node:assert/strict';
 import postgres from 'postgres';
-import {createClient} from '@supabase/supabase-js';
-import certificates from '../db/supabase-ca.json' with {type:'json'};
+import {DeleteObjectsCommand,ListObjectsV2Command} from '@aws-sdk/client-s3';
+import {databaseUrl,databaseOptions,storageBucket,storageClient} from '../lib/server-config.mjs';
 Object.assign(process.env,parseEnv(fs.readFileSync('.env.local','utf8')));
-const origin=process.argv[2];if(!origin||!['127.0.0.1','tingye-reader.vercel.app'].includes(new URL(origin).hostname))throw Error('Supply the local test server or production alias.');
-const sql=postgres(process.env.DATABASE_URL||process.env.POSTGRES_URL,{ssl:{rejectUnauthorized:true,ca:certificates.ca},max:1,prepare:false});
-const files=createClient(process.env.SUPABASE_URL||process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.SUPABASE_SERVICE_ROLE_KEY).storage.from('tingye-books');
+const origin=process.argv[2];if(!origin||!['127.0.0.1','localhost'].includes(new URL(origin).hostname)&&!process.argv.includes('--allow-remote'))throw Error('Supply a local test server; remote test accounts require --allow-remote.');
+const sql=postgres(databaseUrl(),databaseOptions(1));
+const files=storageClient(),bucket=storageBucket();
 const load=createRequire(new URL('../../ios/tests/load-ts.cjs',import.meta.url))('./load-ts.cjs');
 const android=load(fileURLToPath(new URL('../../android/src/tingye/library.ts',import.meta.url)));
 const ios=load(fileURLToPath(new URL('../../ios/src/tingye/library.ts',import.meta.url)));
 const ids=[randomUUID(),randomUUID()],tokens=ids.map(()=>randomBytes(32).toString('hex'));
 const remote=token=>async(path,options={})=>{const r=await fetch(origin+path,{...options,headers:{Authorization:'Bearer '+token,'Content-Type':'application/json','X-Tingye-Client':'native'},signal:AbortSignal.timeout(120000)});const body=await r.json();if(!r.ok)throw Error(`HTTP ${r.status}: ${body.error}`);return body;};
-const transfer=(url,options)=>{assert.equal(new URL(url).hostname,new URL(process.env.SUPABASE_URL||process.env.NEXT_PUBLIC_SUPABASE_URL).hostname);return fetch(url,{...options,redirect:'error',signal:AbortSignal.timeout(120000)});};
+const transfer=(url,options)=>{assert.equal(new URL(url).hostname,new URL(process.env.S3_PUBLIC_ENDPOINT||process.env.APP_ORIGIN||'http://localhost:9000').hostname);return fetch(url,{...options,redirect:'error',signal:AbortSignal.timeout(120000)});};
 const disk=()=>{let rows=[];const bodies=new Map();return {load:async()=>structuredClone(rows),save:async r=>rows=structuredClone(r),read:async id=>bodies.get(id),write:async b=>bodies.set(b.id,structuredClone(b)),remove:async id=>bodies.delete(id)};};
 const fixture={id:randomUUID(),title:'临时跨设备完整备份测试',author:'测试',format:'EPUB',cover:'r0',resources:{r0:'data:image/svg+xml;base64,'+Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/>').toString('base64')},chapters:[{title:'封面',text:'',document:{html:'<img src="tingye-resource:r0">',css:'',path:'cover.xhtml'}},{title:'正文',text:'第一句。第二句。第三句。',document:{html:'<p>第一句。第二句。第三句。</p>',css:'',path:'text.xhtml'}}]};
 try{
@@ -38,6 +38,15 @@ try{
  const report={origin,protocol:2,actualAndroidAndIosModules:true,realDatabaseAndPrivateStorage:true,threeDevicesRestore:true,imagesCoverAndOriginalLayout:true,readingProgressBothDirections:true,restoreExistingLocalBook:true,staleUploadRejected:true,interruptedUploadKeepsPrevious:true,accountIsolation:true,legacyWritesDisabled:true,deviceFilesystemAndUI:'mocked',testedAt:new Date().toISOString()};
  fs.mkdirSync('.reports',{recursive:true});fs.writeFileSync('.reports/backup-v2-live.json',JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));
 }finally{
- for(const uid of ids){const objects=await sql`select name from storage.objects where bucket_id='tingye-books' and name like ${uid+'/%'}`;if(objects.length){const result=await files.remove(objects.map(r=>r.name));if(result.error)throw result.error;}await sql`delete from tingye.accounts where id=${uid}`;await sql`delete from tingye.rate_limits where key=${'backup-v2:'+uid}`;}
+ for(const uid of ids){
+  let token;
+  do{
+   const page=await files.send(new ListObjectsV2Command({Bucket:bucket,Prefix:uid+'/',ContinuationToken:token}));
+   const objects=(page.Contents||[]).filter(o=>o.Key).map(o=>({Key:o.Key}));
+   if(objects.length){const result=await files.send(new DeleteObjectsCommand({Bucket:bucket,Delete:{Objects:objects}}));if(result.Errors?.length)throw Error('Test object cleanup failed');}
+   token=page.IsTruncated?page.NextContinuationToken:undefined;
+  }while(token);
+  await sql`delete from tingye.accounts where id=${uid}`;await sql`delete from tingye.rate_limits where key=${'backup-v2:'+uid}`;
+ }
  await sql.end();
 }

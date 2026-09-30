@@ -1,0 +1,14 @@
+const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
+const {patchHeader,patchRuntime}=require('../tools/patch-jsi-bridging.cjs');
+const root=path.join(__dirname,'..','node_modules','expo-modules-jsi','apple','Sources');
+const header=fs.readFileSync(path.join(root,'ExpoModulesJSI-Cxx','include','RuntimeScheduler.h'),'utf8');
+const runtime=fs.readFileSync(path.join(root,'ExpoModulesJSI','Runtime','JavaScriptRuntime.swift'),'utf8');
+const nextHeader=patchHeader(header),nextRuntime=patchRuntime(runtime);
+assert.equal(patchHeader(nextHeader),nextHeader);
+assert.equal(patchRuntime(nextRuntime),nextRuntime);
+assert.doesNotMatch(nextRuntime,/nonisolated\(unsafe\) let (?:resultPtr|thisPtr|argumentsPtr) =/);
+assert.equal((nextRuntime.match(/let (?:resultPtr|thisPtr|argumentsPtr) = NonisolatedUnsafeVar/g)||[]).length,7);
+assert.equal((nextRuntime.match(/JavaScriptActor\.assumeIsolated/g)||[]).length,(runtime.match(/JavaScriptActor\.assumeIsolated/g)||[]).length);
+assert.throws(()=>patchRuntime(runtime.replace(/resultPtr/g,'renamedResult')),/Unexpected expo-modules-jsi source/);
+assert.throws(()=>patchHeader(header.replace('RuntimeScheduler()','RuntimeScheduler(int version)')),/Unexpected expo-modules-jsi source/);
+console.log('PASS: Xcode JSI compatibility fix covers exact installed sources, retains actor checks, is idempotent and rejects upstream drift.');

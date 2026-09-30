@@ -5,13 +5,14 @@ import {WebView} from 'react-native-webview';
 import {Asset} from 'expo-asset';
 import {Directory,File,Paths} from 'expo-file-system';
 import type {Chapter} from './books';
-import type {ReadingCursor} from './player';
+import {readerPlayer} from './player';
+import {connectPlayback} from './playback-bridge';
 import {originalPage,type ReaderConfig} from './original-page';
 import {pdfPage} from './pdf-page';
 import {chapterResources} from './chapter-resources';
 export type ReaderPage={index:number;count:number;start:number;end:number;anchor?:number;manual?:boolean};
 export type OriginalReaderHandle={turn:(delta:number)=>void;seek:(offset:number)=>void};
-type Props={chapter:Chapter;pdf?:string;resources?:Record<string,string>;chapterIndex:number;config:ReaderConfig;initialOffset:number;playback?:ReadingCursor;onPage:(page:ReaderPage)=>void;onBoundary:(delta:number)=>void;onToggle:()=>void;onPlay:()=>void;onHideControls:()=>void;onLink:(href:string)=>void};
+type Props={chapter:Chapter;pdf?:string;resources?:Record<string,string>;chapterIndex:number;config:ReaderConfig;initialOffset:number;onPage:(page:ReaderPage)=>void;onBoundary:(delta:number)=>void;onToggle:()=>void;onPlay:()=>void;onHideControls:()=>void;onLink:(href:string)=>void};
 const fontModules=[require('../../assets/fonts/NotoSerifCJKsc-Regular.otf'),require('../../assets/fonts/LXGWWenKaiLite-Regular.ttf')];
 let resources:Promise<string>|undefined,pdfEngine:Promise<string>|undefined;
 const loadResources=()=>resources??=Promise.all(fontModules.map(async(module,index)=>{
@@ -44,11 +45,12 @@ export default forwardRef<OriginalReaderHandle,Props>(function OriginalReader(p,
   return()=>{cancelled=true;if(owned?.exists)owned.delete();};
  },[p.chapter,p.pdf,p.chapterIndex,generation]);
  useEffect(()=>{if(ready)command({type:'config',value:p.config});},[p.config,ready]);
- // One bridge message owns both pagination and highlighting, including reloads.
- useEffect(()=>{if(ready)command({type:'playback',cursor:p.playback??null});},[p.playback,ready]);
+ // Send directly from the playback event; no React render/effect in between.
+ // One message still owns both page following and sentence highlighting.
+ useEffect(()=>{if(ready)return connectPlayback(readerPlayer,p.chapterIndex,cursor=>command({type:'playback',cursor}));},[p.chapterIndex,ready]);
  useEffect(()=>{if(!uri)return;const timer=setTimeout(()=>{if(!readyRef.current){setError('排版响应超时，可重试或先阅读纯文本。');setFallback(true);}},20000);return()=>clearTimeout(timer);},[uri]);
  useEffect(()=>{if(fallback)p.onPage({index:0,count:1,start:0,end:p.chapter.text.length});},[fallback,p.chapter]);
- const recover=()=>{if(retries.current++<2){pageOffset.current=latest.current.playback?.offset??pageOffset.current;setGeneration(v=>v+1);}else{setError('显示组件已重新启动，可重试或阅读纯文本。');setFallback(true);}};
+ const recover=()=>{if(retries.current++<2){const cursor=readerPlayer.snapshot().cursor;pageOffset.current=cursor?.chapter===latest.current.chapterIndex?cursor.offset:pageOffset.current;setGeneration(v=>v+1);}else{setError('显示组件已重新启动，可重试或阅读纯文本。');setFallback(true);}};
  return <View style={{flex:1,backgroundColor:p.config.colors.surface}}>
   {!fallback&&!!uri&&<WebView ref={web} key={generation} source={source} style={{flex:1,backgroundColor:p.config.colors.surface}} allowingReadAccessToURL={Paths.cache.uri} automaticallyAdjustContentInsets={false} contentInsetAdjustmentBehavior="never" bounces={false} originWhitelist={['*']} javaScriptEnabled domStorageEnabled={false} incognito thirdPartyCookiesEnabled={false} sharedCookiesEnabled={false} allowFileAccess allowFileAccessFromFileURLs allowUniversalAccessFromFileURLs={false} mixedContentMode="never" setSupportMultipleWindows={false} javaScriptCanOpenWindowsAutomatically={false} textZoom={100} scrollEnabled={!!p.pdf} overScrollMode="never" onShouldStartLoadWithRequest={r=>r.url===uri||r.url==='about:blank'||r.url.startsWith(uri+'#')} onRenderProcessGone={recover} onContentProcessDidTerminate={recover} onError={()=>{setError('书页加载失败，可重试或继续阅读纯文本。');setFallback(true);}} onMessage={event=>{try{const m=JSON.parse(event.nativeEvent.data);if(m.type==='ready'){readyRef.current=true;setReady(true);}else if(m.type==='page'&&[m.index,m.count,m.start,m.end].every(Number.isFinite)&&m.count>0&&m.count<100000){pageOffset.current=Number.isFinite(m.anchor)?m.anchor:m.start;latest.current.onPage(m);}else if(m.type==='toggle')latest.current.onToggle();else if(m.type==='play')latest.current.onPlay();else if(m.type==='hideControls')latest.current.onHideControls();else if(m.type==='boundary'&&(m.delta===1||m.delta===-1))latest.current.onBoundary(m.delta);else if(m.type==='link'&&typeof m.href==='string')latest.current.onLink(m.href);else if(m.type==='error'){setError(String(m.message));setFallback(true);}}catch{}}}/>}
   {!ready&&!fallback&&<View pointerEvents="none" style={{position:'absolute',top:12,left:0,right:0,alignItems:'center'}}><ActivityIndicator color={p.config.colors.accent}/></View>}
