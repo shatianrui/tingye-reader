@@ -57,8 +57,7 @@ export default function ReaderApplication({services=readerServices}:{services?:R
 
  const [draftVoice,setDraftVoice]=useState<VoiceConfig>(defaultVoice);
  const player=usePlayer(),colors=readingTheme(prefs.theme);
- const readingCursor=player.active?player.cursor:undefined;
- const chapter=readingCursor?.chapter??savedChapter,position=readingCursor?.position??savedPosition;
+ const chapter=player.active?player.chapter:savedChapter,position=player.active?player.position:savedPosition;
  const latest=useRef({book,chapter,position});latest.current={book,chapter,position};
  const pendingProgress=useRef<ReturnType<typeof setTimeout>|null>(null),progressQueue=useRef(Promise.resolve());
  const readingProgress=useRef(createReadingProgress());
@@ -93,7 +92,7 @@ export default function ReaderApplication({services=readerServices}:{services?:R
  // Throttle rather than debounce: rapid sentence boundaries must not postpone
  // persistence forever. save() reads the latest cursor when the timer fires.
  useEffect(()=>{if(!book||pendingProgress.current)return;pendingProgress.current=setTimeout(()=>{pendingProgress.current=null;save();},800);},[book,chapter,position,save]);
- useEffect(()=>{readerPlayer.onPosition=(ci,si)=>{readingProgress.current.move(ci,si);latest.current={...latest.current,chapter:ci,position:si};setChapter(ci);setPosition(si);};return()=>{readerPlayer.onPosition=null;};},[]);
+ useEffect(()=>{let previous='';readerPlayer.onPosition=(ci,si)=>{readingProgress.current.move(ci,si);const key=`${ci}:${si}`;if(key===previous)return;previous=key;latest.current={...latest.current,chapter:ci,position:si};setChapter(ci);setPosition(si);};return()=>{readerPlayer.onPosition=null;};},[]);
  useEffect(()=>{setPageStart(0);setPageEnds([]);setReaderPage({index:0,count:1,start:0,end:0});},[chapter,book?.id]);
  useEffect(()=>{readerPlayer.stop();},[book?.id]);
  const activeRange=ranges[position];
@@ -215,7 +214,7 @@ export default function ReaderApplication({services=readerServices}:{services?:R
     <View accessible={false} testID="reading-body" style={[styles.readingBody,{width:layout.contentWidth,alignSelf:'center',marginHorizontal:0}]}
       onLayout={event=>{setPageHeight(event.nativeEvent.layout.height);setPageWidth(event.nativeEvent.layout.width);}}>
       <Pressable accessible={false} testID="reading-empty-space" onPress={toggleControls} style={StyleSheet.absoluteFill}/>
-      {currentChapter&&pageWidth>0&&pageHeight>0&&<OriginalReader key={book.id+':'+chapter+':'+repairRevision} ref={originalReader} chapter={currentChapter} pdf={book.pdf} resources={book.resources} chapterIndex={chapter} config={readerConfig} initialOffset={activeRange?.start??0} playback={readingCursor} onPage={paginationReady} onToggle={toggleControls} onPlay={play} onHideControls={()=>setControlsVisible(false)} onBoundary={crossChapter} onLink={followBookLink}/>}
+      {currentChapter&&pageWidth>0&&pageHeight>0&&<OriginalReader key={book.id+':'+chapter+':'+repairRevision} ref={originalReader} chapter={currentChapter} pdf={book.pdf} resources={book.resources} chapterIndex={chapter} config={readerConfig} initialOffset={activeRange?.start??0} onPage={paginationReady} onToggle={toggleControls} onPlay={play} onHideControls={()=>setControlsVisible(false)} onBoundary={crossChapter} onLink={followBookLink}/>}
 
     </View>
     <View style={[styles.readingFooter,{height:layout.compactHeight?48:60,paddingHorizontal:layout.gutter,width:layout.contentWidth+2*layout.gutter,alignSelf:'center'}]}>

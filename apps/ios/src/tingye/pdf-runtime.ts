@@ -7,8 +7,8 @@ export async function pdfRuntime(){
  const bytes=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
  class CMaps{async fetch({name}){const data=window.PDF_RESOURCES[name+'.bcmap'];if(!data)throw Error('Missing CMap');return {cMapData:bytes(data),compressionType:1};}}
  class Fonts{async fetch({filename}){return bytes(window.PDF_RESOURCES[filename]);}}
- let config=init.config,textLayer,highlight={start:-1,end:-1},pdfPage,textContent,rendering=false,pending=false,resizeTimer;
- const applyHighlight=()=>{if(textLayer)paintWordHighlight(textLayer.textDivs.filter(span=>span.firstChild?.nodeType===3).map(span=>({node:span.firstChild,start:Number(span.dataset.pos)})),highlight.start,highlight.end,config.colors.highlight);};
+ let config=init.config,textLayer,highlight={start:-1,end:-1},pdfPage,textContent,rendering=false,pending=false,resizeTimer,paintedLayer,lastHighlight='';
+ const applyHighlight=()=>{const key=`${highlight.start}:${highlight.end}:${config.colors.highlight}`;if(!textLayer||(textLayer===paintedLayer&&key===lastHighlight))return;paintedLayer=textLayer;lastHighlight=key;paintWordHighlight(textLayer.textDivs.filter(span=>span.firstChild?.nodeType===3).map(span=>({node:span.firstChild,start:Number(span.dataset.pos)})),highlight.start,highlight.end,config.colors.highlight);};
  async function render(){
   if(!pdfPage||innerWidth<1||innerHeight<1)return;
   if(rendering){pending=true;return;}

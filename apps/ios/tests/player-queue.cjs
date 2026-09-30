@@ -33,11 +33,11 @@ function harness(blockPrefetch=false,androidSpeech=false,control={}){
    if(id==='react')return {useSyncExternalStore:()=>{}};
    if(id==='react-native')return {Platform:{OS:androidSpeech?'android':'ios'}};
    if(id==='expo-secure-store')return {getItemAsync:async()=>null};
-   if(id==='expo-speech')return {stop:async()=>{if(androidSpeech)utterances.at(-1)?.onStopped();},speak:(text,options)=>{requests.push(text);utterances.push(options);if(!androidSpeech)setImmediate(()=>{options.onBoundary?.({charIndex:3,charLength:1});options.onBoundary?.({charIndex:6,charLength:1});options.onDone();});}};
+   if(id==='expo-speech')return {stop:async()=>{if(androidSpeech||control.manualSpeech)utterances.at(-1)?.onStopped();},pause:async()=>{},resume:async()=>{},speak:(text,options)=>{requests.push(text);utterances.push(options);if(!androidSpeech&&!control.manualSpeech)setImmediate(()=>{options.onBoundary?.({charIndex:3,charLength:1});options.onBoundary?.({charIndex:6,charLength:1});options.onDone();});}};
    if(id==='expo-file-system')return filesystem;
    if(id==='./client')return {request:async(_,options)=>{control.bodies?.push(JSON.parse(options.body));const text=JSON.parse(options.body).input,index=requests.length;requests.push(text);await control.gate?.(index,text);if(blockPrefetch&&requests.length>2)await new Promise(resolve=>pending.push(resolve));return control.response?.(text,index)??{arrayBuffer:async()=>(control.bytes?.(text,index)??new Uint8Array([1,2,3])).buffer};}};
-   if(id==='expo-audio')return {setAudioModeAsync:async()=>{},createAudioPlaylist:({sources})=>{
-    const p={sources:sources.map(s=>validate(typeof s==='string'?{uri:s}:s)),skips:[],plays:0,pauses:0,destroyed:false,playing:false,
+   if(id==='expo-audio')return {setAudioModeAsync:async()=>{},createAudioPlaylist:({sources,updateInterval})=>{
+    const p={updateInterval,sources:sources.map(s=>validate(typeof s==='string'?{uri:s}:s)),skips:[],plays:0,pauses:0,destroyed:false,playing:false,
      add(s){validate(s);assert.equal(this.destroyed,false);this.sources.push(s);},
      addListener(_,fn){this.emit=fn;},play(){this.playing=true;this.plays++;},pause(){this.playing=false;this.pauses++;},
      skipTo(i){this.skips.push(i);},clear(){this.sources=[];this.playing=false;},removeAllListeners(){},destroy(){this.destroyed=true;},release(){this.released=true;}};

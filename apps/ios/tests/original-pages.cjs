@@ -20,6 +20,19 @@ const png='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9
  try{const page=await browser.newPage({viewport:{width:392,height:720},deviceScaleFactor:1});const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.addInitScript(()=>{window.messages=[];window.ReactNativeWebView={postMessage:s=>window.messages.push(JSON.parse(s))};});
   await page.goto('file:///'+path.join(out,'epub.html').replaceAll('\\','/'));await page.waitForFunction(()=>window.messages.some(m=>m.type==='ready'));await page.evaluate(()=>document.fonts.ready);await page.waitForTimeout(250);
   const initial=await page.evaluate(()=>window.messages.filter(m=>m.type==='page').at(-1));assert.ok(initial.count>5);await page.screenshot({path:path.join(out,'01-epub.png')});
+  // A burst of native positions in one sentence must not echo every character
+  // to React or rebuild the same highlight (especially at 1.5x playback).
+  const burst=await page.evaluate(()=>{
+   const cursor={chapter:0,position:0,offset:0,start:0,end:20};
+   window.readerCommand({type:'playback',cursor});
+   const before=window.messages.filter(m=>m.type==='page').length,highlight=CSS.highlights.get('reading');
+   for(let offset=1;offset<20;offset++)window.readerCommand({type:'playback',cursor:{...cursor,offset}});
+   const result={pageEvents:window.messages.filter(m=>m.type==='page').length-before,sameHighlight:CSS.highlights.get('reading')===highlight};
+   window.readerCommand({type:'playback',cursor:null});result.stoppedAnchor=window.messages.filter(m=>m.type==='page').at(-1).anchor;return result;
+  });
+  assert.equal(burst.pageEvents,0,'within-page playback must not create a React/WebView feedback loop');
+  assert.equal(burst.sameHighlight,true,'keep the sentence highlight while only the spoken offset changes');
+  assert.equal(burst.stoppedAnchor,19,'stopping flushes the last spoken position so resume does not jump back');
   assert.equal(await page.locator('img').evaluate(n=>n.complete&&n.naturalWidth>0&&n.getBoundingClientRect().width>20&&n.getBoundingClientRect().height>20),true);
   // Every character anchor must be visible on the selected page, including mid-paragraph page turns.
   for(let offset=0;offset<chapter.text.length;offset+=97){await page.evaluate(offset=>window.readerCommand({type:'seek',offset}),offset);const visible=await page.evaluate(offset=>{const nodes=[...document.querySelectorAll('[data-pos]')],span=nodes.find(n=>Number(n.dataset.pos)<=offset&&Number(n.dataset.pos)+n.textContent.length>offset)||nodes.find(n=>Number(n.dataset.pos)>=offset);if(!span)return true;const node=span.firstChild,r=document.createRange(),i=Math.max(0,Math.min(node.length-1,offset-Number(span.dataset.pos)));r.setStart(node,i);r.setEnd(node,i+1);const b=r.getBoundingClientRect();return b.width===0||(b.left>=-2&&b.left<innerWidth&&b.top>=-2&&b.bottom<=innerHeight+3);},offset);assert.ok(visible,'Hidden text at offset '+offset);}

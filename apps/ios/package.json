@@ -1,6 +1,6 @@
 {
   "name": "we_reader_rn",
-  "version": "1.9.1",
+  "version": "1.9.2",
   "main": "index.ts",
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",
@@ -45,7 +45,7 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
-    "test": "node tests/player-queue.cjs && node tests/import-book.cjs && node tests/account-login.cjs && node tests/typesetting.cjs && node tests/eink-mode.cjs && node tests/book-covers.cjs && node tests/library-presentation.cjs && node tests/reader-layout.cjs && node tests/speech-timing.cjs && node tests/glm-startup.cjs && node tests/native-alignment.cjs && node tests/tts-retry.cjs && node tests/native-shelf-transport.cjs && node tests/backup-v2.cjs && node ../../tools/tests/xcode-compat.cjs && node tests/jsi-compat.cjs",
+    "test": "node tests/player-queue.cjs && node tests/playback-bridge.cjs && node tests/import-book.cjs && node tests/account-login.cjs && node tests/typesetting.cjs && node tests/eink-mode.cjs && node tests/book-covers.cjs && node tests/library-presentation.cjs && node tests/reader-layout.cjs && node tests/speech-timing.cjs && node tests/glm-startup.cjs && node tests/native-alignment.cjs && node tests/tts-retry.cjs && node tests/native-shelf-transport.cjs && node tests/backup-v2.cjs && node ../../tools/tests/xcode-compat.cjs && node tests/jsi-compat.cjs",
     "build:reader": "node tools/build-reader-assets.cjs",
     "test:reader": "node tests/original-pages.cjs",
     "prepare:native": "node tools/prepare-native.cjs",
