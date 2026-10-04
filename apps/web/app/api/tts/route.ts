@@ -29,19 +29,22 @@ export async function POST(req:Request) {
     if(!Object.hasOwn(endpoints,provider)||typeof input!=="string"||!input.trim()||input.length>1000) return Response.json({error:"请检查语音来源与朗读文本。"},{status:400});
     if(provider==='glm')body.voice??=env.GLM_TTS_VOICE||'tongtong';
     if(typeof body.voice!=='string'||!body.voice.trim()||body.voice.length>200)return Response.json({error:'请选择有效音色。'},{status:400});
-    if(!(provider==='glm'?env.GLM_TTS_API_KEY:env.MINIMAX_API_KEY))return Response.json({error:'语音服务尚未配置服务端密钥，请暂用本地语音。'},{status:503});
+    const userKey=typeof body.key==='string'&&body.key.trim()?body.key.trim():typeof body.apiKey==='string'&&body.apiKey.trim()?body.apiKey.trim():undefined;
+    if(!userKey&&!(provider==='glm'?env.GLM_TTS_API_KEY:env.MINIMAX_API_KEY))return Response.json({error:'语音服务尚未配置密钥。请在设置中输入自己的 API 密钥，或暂用本地语音。'},{status:503});
     await reserveTtsBudget(db(),'tts-minute:'+user.userId,60,60,1,'frequency');
     refund=await reserveTtsBudget(db(),'tts:'+user.userId,dailyCharacterLimit(env.TTS_DAILY_CHARACTERS),86400,input.length,'daily');
     if(provider==='minimax'){
       if(typeof body.voice!=='string'||!body.voice.trim()||body.voice.length>200)return Response.json({error:'请选择 MiniMax 音色。'},{status:400});
-      try{const timing=body.timing===true;const audio=(body.delivery==='url'?await minimaxAudioUrl(input,body.voice,timing):undefined)??await minimaxAudio(input,body.voice,timing);synthesized=true;return audio;}catch(error){return Response.json({error:error instanceof Error?error.message:'MiniMax 请求失败。'},{status:502});}
+      // User-provided MiniMax credentials take priority over server env keys.
+      const creds={key:userKey,groupId:typeof body.groupId==='string'&&body.groupId.trim()?body.groupId.trim():undefined,model:typeof body.model==='string'&&body.model.trim()?body.model.trim():undefined};
+      try{const timing=body.timing===true;const audio=(body.delivery==='url'?await minimaxAudioUrl(input,body.voice,timing,creds):undefined)??await minimaxAudio(input,body.voice,timing,creds);synthesized=true;return audio;}catch(error){return Response.json({error:error instanceof Error?error.message:'MiniMax 请求失败。'},{status:502});}
     }
-    // Credentials and model remain server-owned; the selected voice is user-controlled.
     const glm=provider==="glm";
-    const key=glm?env.GLM_TTS_API_KEY:body.key;
-    const model=glm?(env.GLM_TTS_MODEL||"glm-tts"):body.model;
+    // User-provided keys take priority over server env keys.
+    const key=body.key||body.apiKey||(glm?env.GLM_TTS_API_KEY:env.MINIMAX_API_KEY);
+    const model=body.model||(glm?(env.GLM_TTS_MODEL||"glm-tts"):(env.MINIMAX_MODEL||'speech-2.8-hd'));
     const voice=glm?(body.voice??env.GLM_TTS_VOICE??"tongtong"):body.voice;
-    if(glm&&!key) return Response.json({error:"GLM-TTS 尚未配置服务端密钥，请暂用系统语音。"},{status:503});
+    if(!key) return Response.json({error:"语音服务尚未配置。请在设置中输入自己的 API 密钥，或暂用系统语音。"},{status:503});
     if(typeof key!=="string"||!key||key.length>1000||typeof model!=="string"||!model||model.length>150||typeof voice!=="string"||!voice||voice.length>200) return Response.json({error:"请检查密钥、模型与音色。"},{status:400});
     // GLM otherwise adds an audible watermark to every synthesized sentence.
     // The provider applies this preference only when the account allows it.

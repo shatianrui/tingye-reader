@@ -22,11 +22,12 @@ import {nativeLibrary} from './native-library';
 import { samples, sentences, type Book } from './books';
 import { parseBook } from './import-book';
 import {needsOriginalRepair} from './book-repair';
-import { defaultVoice, voices, type VoiceConfig, type VoiceOption } from './voices';
+import { MODEL_OPTIONS, defaultVoice, voices, type VoiceConfig, type VoiceOption } from './voices';
 import { readerPlayer, usePlayer } from './player';
 import { sentenceRanges } from './pagination';
 import { readingTheme, type ReadingTheme } from './themes';
 import { voiceSourceChanged } from './playback-settings';
+import { loadVoiceCredentials } from './voice-keys';
 import OriginalReader,{type OriginalReaderHandle,type ReaderPage} from './OriginalReader';
 import {resourcePath} from './original-document';
 import ReadingAppearancePanel from './ReadingAppearancePanel';
@@ -173,9 +174,10 @@ export default function ReaderApplication({services=readerServices}:{services?:R
    if(panel==='settings'&&!applyDraftVoice())return;
    setPanel(null);
  };
- const chooseProvider=(provider:VoiceConfig['provider'])=>{const model=provider==='glm'?'glm-tts':provider==='minimax'?'speech-2.8-hd':'';const next={provider,model,voice:'',rate:draftVoice.rate};next.voice=voices(next)[0]?.value||'';changeVoice(next);setVoiceNotice('');};
- const loadMiniVoices=async()=>{setVoicesBusy(true);setVoiceNotice('');try{const data=await api<{voices:VoiceOption[]}>('/api/tts/voices',{method:'POST',body:JSON.stringify({provider:'minimax'})});setMiniVoices(data.voices);setVoiceNotice('已加载 '+data.voices.length+' 个可用音色');}catch(e){setVoiceNotice(errorText(e));}finally{setVoicesBusy(false);}};
- useEffect(()=>{if(panel==='settings'&&draftVoice.provider==='minimax'&&!miniVoices.length)void loadMiniVoices();},[panel,draftVoice.provider]);
+ const chooseProvider=(provider:VoiceConfig['provider'])=>{const model=provider==='glm'?'glm-tts':provider==='minimax'?'speech-2.8-hd':'';const next:VoiceConfig={provider,model,voice:'',rate:draftVoice.rate,apiKey:draftVoice.provider===provider?draftVoice.apiKey:'',groupId:draftVoice.provider===provider?draftVoice.groupId:''};next.voice=voices(next)[0]?.value||'';changeVoice(next);setVoiceNotice('');setMiniVoices([]);
+  if(provider==='glm'||provider==='minimax')void loadVoiceCredentials().then(creds=>{const saved=creds[provider];if(saved)setDraftVoice(v=>v.provider===provider?{...v,apiKey:v.apiKey||saved.key||'',groupId:v.groupId||saved.groupId||''}:v);});};
+ const loadMiniVoices=async()=>{setVoicesBusy(true);setVoiceNotice('');try{const data=await api<{voices:VoiceOption[]}>('/api/tts/voices',{method:'POST',body:JSON.stringify({provider:'minimax',key:draftVoice.apiKey||'',groupId:draftVoice.groupId||''})});setMiniVoices(data.voices);setVoiceNotice('已加载 '+data.voices.length+' 个可用音色');}catch(e){setVoiceNotice(errorText(e));}finally{setVoicesBusy(false);}};
+ useEffect(()=>{if(panel==='settings'&&draftVoice.provider==='minimax'&&!miniVoices.length&&draftVoice.apiKey)void loadMiniVoices();},[panel,draftVoice.provider,draftVoice.apiKey]);
  const logout=async()=>{readerPlayer.clearCache();save();await progressQueue.current;try{await signOut();library.current=null;readingProgress.current.clear();setIdentity(null);setBook(null);setBooks(samples);setPanel(null);setNotice('');setMiniVoices([]);}catch(e){setNotice(errorText(e));}};
  const title=book?.title||'我的书架';
  const selectedVoices=draftVoice.provider==='system'?voiceList.map(v=>({value:v.identifier,label:`${v.name} · ${v.language}`})):draftVoice.provider==='minimax'&&miniVoices.length?miniVoices:voices(draftVoice);
@@ -247,11 +249,14 @@ export default function ReaderApplication({services=readerServices}:{services?:R
      {player.active&&!!player.timingNotice&&<Text style={{color:colors.muted,lineHeight:22}}>{player.timingNotice} 高亮始终显示整句，翻页跟随句内朗读位置。GLM 时间戳在后台分析，不等待识别即可播放；未取得时间戳时使用估算进度。</Text>}
      <CloudConnection colors={colors}/>
      <Text style={[styles.label,{color:colors.muted}]}>语音服务</Text><View style={styles.chips}>{(['system','glm','minimax'] as const).map((provider,i)=><ReaderButton colors={colors} key={provider} label={['本地语音','GLM','MiniMax'][i]} primary={draftVoice.provider===provider} onPress={()=>chooseProvider(provider)}/>)}</View>
-     {draftVoice.provider!=='system'&&<><Text style={[styles.label,{color:colors.muted}]}>模型</Text><TextInput value={draftVoice.model} editable={false} onChangeText={model=>changeVoice({...draftVoice,model})} autoCapitalize="none" style={[styles.input,{color:colors.text,borderColor:colors.line}]}/></>}
-     {draftVoice.provider==='minimax'&&<><Text style={{color:colors.muted}}>中国区 · 使用服务端密钥</Text><ReaderButton colors={colors} label={voicesBusy?'正在获取音色…':'刷新全部音色'} disabled={voicesBusy} onPress={()=>{void loadMiniVoices();}}/>{!!voiceNotice&&<Text style={{color:colors.muted}}>{voiceNotice}</Text>}</>}
+     {draftVoice.provider!=='system'&&<><Text style={[styles.label,{color:colors.muted}]}>{draftVoice.provider==='glm'?'GLM API 密钥':'MiniMax API 密钥'}</Text><TextInput value={draftVoice.apiKey||''} onChangeText={apiKey=>changeVoice({...draftVoice,apiKey:apiKey.trim()})} placeholder={draftVoice.provider==='glm'?'在智谱开放平台创建 API Key':'在 MiniMax 开放平台创建 API Key'} placeholderTextColor={colors.muted} autoCapitalize="none" autoCorrect={false} secureTextEntry style={[styles.input,{color:colors.text,borderColor:colors.line}]}/></>}
+     {draftVoice.provider==='minimax'&&<><Text style={[styles.label,{color:colors.muted}]}>MiniMax GroupId</Text><TextInput value={draftVoice.groupId||''} onChangeText={groupId=>changeVoice({...draftVoice,groupId:groupId.trim()})} placeholder="MiniMax 开放平台用户中心查看 GroupId" placeholderTextColor={colors.muted} autoCapitalize="none" autoCorrect={false} style={[styles.input,{color:colors.text,borderColor:colors.line}]}/></>}
+     {draftVoice.provider!=='system'&&<Text style={{color:colors.muted,fontSize:12,lineHeight:18}}>密钥仅保存在本机安全存储，合成时随请求经听页云端转发给语音服务商，云端不存储。</Text>}
+     {draftVoice.provider!=='system'&&<><Text style={[styles.label,{color:colors.muted}]}>模型</Text><View style={styles.chips}>{(MODEL_OPTIONS[draftVoice.provider]||[]).map(m=><ReaderButton colors={colors} key={m.value} label={m.label} primary={draftVoice.model===m.value} onPress={()=>changeVoice({...draftVoice,model:m.value})}/>)}</View><TextInput value={draftVoice.model} onChangeText={model=>changeVoice({...draftVoice,model})} placeholder="模型名称 / 自定义模型 ID" placeholderTextColor={colors.muted} autoCapitalize="none" autoCorrect={false} style={[styles.input,{color:colors.text,borderColor:colors.line}]}/></>}
+     {draftVoice.provider==='minimax'&&<><ReaderButton colors={colors} label={voicesBusy?'正在获取音色…':'刷新全部音色'} disabled={voicesBusy} onPress={()=>{void loadMiniVoices();}}/>{!!voiceNotice&&<Text style={{color:colors.muted}}>{voiceNotice}</Text>}</>}
      <Text style={[styles.label,{color:colors.muted}]}>音色</Text><View style={styles.chips}>{selectedVoices.map(v=><ReaderButton colors={colors} key={v.value} label={v.label} primary={draftVoice.voice===v.value} onPress={()=>changeVoice({...draftVoice,voice:v.value})}/>)}</View>
      {draftVoice.provider!=='system'&&<TextInput value={draftVoice.voice} onChangeText={voice=>changeVoice({...draftVoice,voice})} placeholder="音色名称 / 自定义音色 ID" placeholderTextColor={colors.muted} autoCapitalize="none" style={[styles.input,{color:colors.text,borderColor:colors.line}]}/>}
-     <Text style={{color:colors.muted,lineHeight:24}}>点“完成”后应用模型和音色。正在听书时会从当前句重新开始；已暂停时保持暂停。云端语音按段落预合成，GLM 和 MiniMax 均使用服务端密钥。</Text>
+     <Text style={{color:colors.muted,lineHeight:24}}>点“完成”后应用密钥、模型和音色。正在听书时会从当前句重新开始；已暂停时保持暂停。云端语音按段落预合成，使用上方填写的密钥，费用由对应服务商账户承担。</Text>
      {identity&&<><Text selectable style={{color:colors.text}}>当前账号：{identity.username}</Text><Text style={{color:colors.muted}}>听页 {appConfig.expo.version} · 本机书籍 · 云端进度同步</Text><ReaderButton colors={colors} label="退出登录 / 切换账号" onPress={()=>{void logout();}}/></>}
     </ScrollView>}
   </ReaderPanel>

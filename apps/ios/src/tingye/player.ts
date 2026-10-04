@@ -261,7 +261,7 @@ class ReaderPlayer {
         const bytes=await withTtsRetry(async requestSignal=>{
           let bytes:Uint8Array;
           const direct=config.provider==='minimax';
-          const fetchClip=(delivery?:'url')=>request('/api/tts',{method:'POST',body:JSON.stringify({provider:config.provider,model:config.model,voice:config.voice,input:speakableText(item.text),timing:true,...(delivery?{delivery}:{})}),signal:requestSignal});
+          const fetchClip=(delivery?:'url')=>request('/api/tts',{method:'POST',body:JSON.stringify({provider:config.provider,model:config.model,voice:config.voice,key:config.apiKey||'',groupId:config.groupId||'',input:speakableText(item.text),timing:true,...(delivery?{delivery}:{})}),signal:requestSignal});
           let response = await fetchClip(direct?'url':undefined);
           if(response.headers?.get('content-type')?.includes('application/json')){
             let data=await response.json() as {audio?:string;words?:TimedWord[];delivery?:string;url?:string;subtitleUrl?:string};
