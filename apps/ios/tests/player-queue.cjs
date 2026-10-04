@@ -234,4 +234,28 @@ if(require.main===module)(async()=>{
  a.release();const c=cache.store('c',new Uint8Array(4),'wav');assert.equal(a.audio.file.exists,false,'LRU entry evicted to enforce byte/entry bounds');assert.ok(b.audio.file.exists&&c.audio.file.exists,'queued audio must stay pinned');b.release();c.release();cache.clear();assert.equal(cacheHarness.files.size,0);
  assert.equal(cacheHarness.policy.canStartAhead(30,20),false);assert.equal(cacheHarness.policy.canStartAhead(110,45),true);
  console.log('PASS: safe early start with full timeout margin at 2x; short-clip guard; ordered independent completions; replay cache, cache deletion and logout isolation; time-based prefetch; no audio truncation on speculative failures; bounded pinned LRU cache.');
+ // System events: pause/resume from native, corrupt clip eviction and restart.
+ const external=harness();await external.player.start(book,0,0,voice);await tick();const sp=external.playlists[0];
+ assert.equal(external.player.snapshot().paused,false);
+ sp.emit({currentIndex:0,externalPause:true,playing:false,isBuffering:false});await tick();
+ assert.equal(external.player.snapshot().paused,true,'external pause must surface as paused state');
+ assert.equal(external.player.snapshot().active,true,'external pause must not stop the session');
+ sp.emit({currentIndex:0,externalResume:true,playing:true,isBuffering:false});await tick();
+ assert.equal(external.player.snapshot().paused,false,'system resume clears an external pause');
+ sp.emit({currentIndex:0,externalPause:true,playing:false,isBuffering:false});await tick();assert.equal(external.player.snapshot().paused,true);
+ external.player.togglePause();assert.equal(external.player.snapshot().paused,false,'user resume wins');assert.equal(sp.plays,2);
+ external.player.togglePause();assert.equal(external.player.snapshot().paused,true,'manual pause during an interruption stays');
+ sp.emit({currentIndex:0,externalResume:true,playing:true,isBuffering:false});await tick();
+ assert.equal(external.player.snapshot().paused,true,'stale system resume cannot override a manual pause');
+ external.player.stop();
+ const corrupt=harness();await corrupt.player.start(book,0,0,voice);await tick();const cp=corrupt.playlists[0];
+ cp.emit({currentIndex:0,itemFailed:true});await tick();
+ assert.equal(corrupt.player.snapshot().active,false,'corrupt clip stops with an error instead of freezing');
+ assert.match(corrupt.player.snapshot().error,/损坏/);
+ const before=corrupt.requests.length;
+ await corrupt.player.start(book,0,0,voice);await tick();
+ assert.equal(corrupt.requests.length,before+1,'only the evicted corrupt clip is re-synthesized on restart');
+ assert.equal(corrupt.playlists[1].playing,true,'restart plays from the cursor');
+ corrupt.player.clearCache();
+ console.log('PASS: system pause/resume surfaces without desync; manual pause beats stale system resume; corrupt clip evicted and re-synthesized on restart.');
 })().catch(e=>{console.error(e.message);process.exitCode=1;});
