@@ -20,7 +20,6 @@ import {useLibraryUI} from '../tingye/library-ui';
 import type { Book } from '../types/models';
 import BookCover from '../components/BookCover';
 import ScreenHeader from '../components/ScreenHeader';
-import Gradient from '../components/Gradient';
 import { FLOATING_TAB_BAR_SPACE } from '../components/MaterialNavBar';
 import { useAppTheme } from '../theme/useAppTheme';
 import { spacing as spacingTokens, brand } from '../theme/tokens';
@@ -58,14 +57,14 @@ function RankingCard({
               styles.rankingBadge,
               {
                 backgroundColor:
-                  i === 0 ? brand.gold : theme.colors.primaryContainer,
+                  i === 0 ? theme.colors.onSurface : theme.colors.surfaceContainerHigh,
               },
             ]}
           >
             <Text
               style={[
                 styles.rankingBadgeText,
-                { color: i === 0 ? '#FFFFFF' : theme.colors.primary },
+                { color: i === 0 ? theme.colors.background : theme.colors.onSurface },
               ]}
             >
               {i + 1}
@@ -247,12 +246,11 @@ function HeroSlide({
         styles.hero,
         {
           width:Math.max(0,width-spacingTokens.lg*2),
-          backgroundColor: brand.deep,
-          opacity: pressed ? 0.95 : 1,
+          backgroundColor: theme.colors.inverseSurface,
+          opacity: pressed ? 0.92 : 1,
         },
       ]}
     >
-      <Gradient from={brand.green} to={brand.deep} id={'hero' + book.id.replace(/[^a-zA-Z0-9]/g, '')} />
       <BookCover book={book} width={84} height={116} />
       <View style={styles.heroInfo}>
         <Text
@@ -262,19 +260,19 @@ function HeroSlide({
           今日推荐
         </Text>
         <Text
-          style={[styles.heroTitle, { color: '#FFFFFF' }]}
+          style={[styles.heroTitle, { color: theme.colors.inverseOnSurface }]}
           numberOfLines={2}
         >
           {book.title}
         </Text>
         <Text
-          style={[styles.heroAuthor, { color: '#FFFFFF' }]}
+          style={[styles.heroAuthor, { color: theme.colors.inverseOnSurface }]}
           numberOfLines={1}
         >
           {book.author} · {book.category}
         </Text>
         <Text
-          style={[styles.heroIntro, { color: '#FFFFFF' }]}
+          style={[styles.heroIntro, { color: theme.colors.inverseOnSurface }]}
           numberOfLines={2}
         >
           {book.intro}
@@ -372,7 +370,7 @@ function HeroCarousel({ books, onPress }: { books: Book[]; onPress: (id: string)
                   width: i === active ? 18 : 6,
                   backgroundColor:
                     i === active
-                      ? brand.gold
+                      ? theme.colors.primary
                       : theme.colors.outlineVariant,
                 },
               ]}

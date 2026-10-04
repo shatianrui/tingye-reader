@@ -9,7 +9,6 @@ import { useLibraryUI, positionLabel, bookProgress } from '../tingye/library-ui'
 import { adaptiveShelfLayout } from '../tingye/reader-layout';
 import BookCover from '../components/BookCover';
 import Icon from '../components/Icon';
-import Gradient from '../components/Gradient';
 import ScreenHeader from '../components/ScreenHeader';
 import { FLOATING_TAB_BAR_SPACE } from '../components/MaterialNavBar';
 import { useAppTheme } from '../theme/useAppTheme';
@@ -139,7 +138,7 @@ export default function ShelfScreen({ navigation }: Props) {
               onPress={() => navigation.navigate('Reader', { bookId: item.id })}
               onLongPress={() => ui.actions(item.id)}
             >
-              <View style={styles.coverShadow}><BookCover book={item} width={coverWidth} height={coverHeight} /></View>
+              <BookCover book={item} width={coverWidth} height={coverHeight} />
               <Text style={[styles.cellTitle, { maxWidth: cellWidth - 4, color: theme.colors.onBackground }]} numberOfLines={1}>{item.title}</Text>
               <View style={[styles.cellMetaRow, { width: coverWidth }]}>
                 <Text style={[styles.cellMeta, { color: theme.colors.onSurfaceVariant }]} numberOfLines={1}>{positionLabel(n)}</Text>
@@ -166,29 +165,33 @@ interface ContinueCardProps {
 }
 
 function ContinueReadingCard({ book, percent, progressLabel, onRead, onListen, onDetail }: ContinueCardProps) {
+  const theme = useAppTheme();
   const fill = useRef(new RNAnimated.Value(0)).current;
   useEffect(() => {
     fill.setValue(0);
     RNAnimated.timing(fill, { toValue: percent, duration: 900, easing: Easing.out(Easing.cubic), useNativeDriver: false }).start();
   }, [percent, fill]);
   const width = fill.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] });
+  const card = theme.colors.inverseSurface;
+  const onCard = theme.colors.inverseOnSurface;
+  const sub = theme.scheme === 'dark' ? 'rgba(28,28,30,0.6)' : 'rgba(255,255,255,0.62)';
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={`继续阅读 ${book.title}`} onPress={onRead} onLongPress={onDetail}
-      style={({ pressed }) => [styles.continueCard, pressed && { transform: [{ scale: 0.99 }] }]}>
-      <Gradient from="#2B5C4B" to="#1C3E33" id="continue" />
-      <View style={styles.continueGlow} />
-      <View style={styles.continueCover}><BookCover book={book} width={86} height={118} /></View>
+      style={({ pressed }) => [styles.continueCard, { backgroundColor: card }, pressed && { opacity: 0.92 }]}>
+      <BookCover book={book} width={86} height={118} />
       <View style={{ flex: 1, marginLeft: 16 }}>
-        <Text style={styles.continueOverline}>继续阅读</Text>
-        <Text numberOfLines={2} style={styles.continueTitle}>{book.title}</Text>
-        <Text numberOfLines={1} style={styles.continueMeta}>{book.author ? `${book.author} · ` : ''}{progressLabel}</Text>
-        <View style={styles.continueTrack}><RNAnimated.View style={{ width, height: '100%', borderRadius: 2, backgroundColor: brand.gold }} /></View>
+        <Text style={[styles.continueOverline, { color: brand.gold }]}>继续阅读</Text>
+        <Text numberOfLines={2} style={[styles.continueTitle, { color: onCard }]}>{book.title}</Text>
+        <Text numberOfLines={1} style={[styles.continueMeta, { color: sub }]}>{book.author ? `${book.author} · ` : ''}{progressLabel}</Text>
+        <View style={[styles.continueTrack, { backgroundColor: theme.scheme === 'dark' ? 'rgba(28,28,30,0.16)' : 'rgba(255,255,255,0.18)' }]}>
+          <RNAnimated.View style={{ width, height: '100%', borderRadius: 2, backgroundColor: brand.gold }} />
+        </View>
         <View style={styles.continueActions}>
-          <Pressable accessibilityRole="button" accessibilityLabel="阅读" onPress={onRead} style={({ pressed }) => [styles.readPill, pressed && { opacity: 0.85 }]}>
-            <Text style={{ color: brand.deep, fontSize: 13, fontWeight: '700' }}>阅读</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel="阅读" onPress={onRead} style={({ pressed }) => [styles.readPill, { backgroundColor: onCard }, pressed && { opacity: 0.85 }]}>
+            <Text style={{ color: card, fontSize: 13, fontWeight: '700' }}>阅读</Text>
           </Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel="听书" onPress={onListen} style={({ pressed }) => [styles.listenPill, pressed && { opacity: 0.7 }]}>
-            <Icon name="headphones" size={15} color="#FFFFFF" /><Text style={{ color: '#FFFFFF', fontSize: 13, fontWeight: '700' }}>听书</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel="听书" onPress={onListen} style={({ pressed }) => [styles.listenPill, { borderColor: theme.scheme === 'dark' ? 'rgba(28,28,30,0.35)' : 'rgba(255,255,255,0.5)' }, pressed && { opacity: 0.7 }]}>
+            <Icon name="headphones" size={15} color={onCard} /><Text style={{ color: onCard, fontSize: 13, fontWeight: '700' }}>听书</Text>
           </Pressable>
         </View>
       </View>
@@ -205,23 +208,20 @@ const styles = StyleSheet.create({
   primaryPill: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 46, paddingHorizontal: 24, borderRadius: 23, marginTop: 24 },
   primaryPillText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
   notice: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, padding: 14, borderRadius: 18, borderWidth: StyleSheet.hairlineWidth, marginTop: 4, marginBottom: 12 },
-  continueCard: { flexDirection: 'row', alignItems: 'center', borderRadius: 26, padding: 18, overflow: 'hidden', marginTop: 4, shadowColor: brand.deep, shadowOpacity: 0.25, shadowRadius: 18, shadowOffset: { width: 0, height: 10 } },
-  continueGlow: { position: 'absolute', width: 180, height: 180, borderRadius: 90, right: -60, top: -70, backgroundColor: 'rgba(201,162,89,0.16)' },
-  continueCover: { shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 10 },
-  continueOverline: { color: brand.gold, fontSize: 12, fontWeight: '700', letterSpacing: 2 },
-  continueTitle: { color: '#FFFFFF', fontFamily: brand.serif, fontSize: 19, fontWeight: '700', lineHeight: 26, marginTop: 6 },
-  continueMeta: { color: 'rgba(255,255,255,0.7)', fontSize: 12, marginTop: 4 },
-  continueTrack: { height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.18)', overflow: 'hidden', marginTop: 12 },
+  continueCard: { flexDirection: 'row', alignItems: 'center', borderRadius: 20, padding: 18, overflow: 'hidden', marginTop: 4 },
+  continueOverline: { fontSize: 12, fontWeight: '700', letterSpacing: 2 },
+  continueTitle: { fontFamily: brand.serif, fontSize: 19, fontWeight: '700', lineHeight: 26, marginTop: 6 },
+  continueMeta: { fontSize: 12, marginTop: 4 },
+  continueTrack: { height: 4, borderRadius: 2, overflow: 'hidden', marginTop: 12 },
   continueActions: { flexDirection: 'row', gap: 10, marginTop: 14 },
-  readPill: { height: 34, paddingHorizontal: 20, borderRadius: 17, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
-  listenPill: { flexDirection: 'row', gap: 5, height: 34, paddingHorizontal: 16, borderRadius: 17, borderWidth: 1, borderColor: 'rgba(255,255,255,0.5)', alignItems: 'center', justifyContent: 'center' },
+  readPill: { height: 34, paddingHorizontal: 20, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  listenPill: { flexDirection: 'row', gap: 5, height: 34, paddingHorizontal: 16, borderRadius: 17, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   sectionRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginTop: 24, marginBottom: 10 },
-  sectionTitle: { fontFamily: brand.serif, fontSize: 19, fontWeight: '700' },
+  sectionTitle: { fontSize: 17, fontWeight: '700' },
   chips: { gap: 8, paddingBottom: 16 },
   chip: { height: 34, paddingHorizontal: 16, borderRadius: 17, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   cell: { flex: 1, alignItems: 'center' },
-  coverShadow: { shadowColor: brand.ink, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.14, shadowRadius: 10 },
-  cellTitle: { fontFamily: brand.serif, fontSize: 14, fontWeight: '700', marginTop: 10, textAlign: 'center' },
+  cellTitle: { fontSize: 13, fontWeight: '600', marginTop: 10, textAlign: 'center' },
   cellMetaRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 3 },
   cellMeta: { fontSize: 11 },
   cellTrack: { height: 3, borderRadius: 2, marginTop: 5, overflow: 'hidden' },

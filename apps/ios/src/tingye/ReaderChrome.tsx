@@ -3,7 +3,6 @@ import { ActivityIndicator, Modal, PanResponder, Pressable, ScrollView, StyleShe
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { DisplayText as Text } from '../components/DisplayText';
 import Icon, { type IconName } from '../components/Icon';
-import Gradient from '../components/Gradient';
 import { brand } from '../theme/tokens';
 import type { ReadingTheme } from './themes';
 
@@ -29,7 +28,7 @@ export function ReaderTopBar({ colors, title, subtitle, left, right, onBack, onL
 }) {
   const eink = colors.eink === true;
   return (
-    <View testID="reader-top-toolbar" style={[s.top, { left, right, backgroundColor: colors.background, borderBottomColor: eink ? colors.text : colors.line, borderBottomWidth: eink ? 1.5 : StyleSheet.hairlineWidth }, !eink && s.shadow]}>
+    <View testID="reader-top-toolbar" style={[s.top, { left, right, backgroundColor: colors.background, borderBottomColor: eink ? colors.text : colors.line, borderBottomWidth: eink ? 1.5 : StyleSheet.hairlineWidth }]}>
       <Round colors={colors} icon="back" label="返回书架" onPress={onBack} />
       <View style={{ flex: 1, alignItems: 'center', paddingHorizontal: 6 }}>
         <Text numberOfLines={1} style={{ fontFamily: SERIF, fontSize: 16, fontWeight: '700', color: colors.text }}>{title}</Text>
@@ -107,7 +106,7 @@ export function ReaderBottomPanel(p: {
   const cardText = eink ? colors.text : '#FFFFFF';
   return (
     <View testID="reader-bottom-toolbar" style={[s.bottom, { left: p.left, right: p.right, backgroundColor: colors.background, paddingHorizontal: p.compact ? 12 : 20,
-      borderTopColor: eink ? colors.text : colors.line, borderTopWidth: eink ? 1.5 : StyleSheet.hairlineWidth, borderTopLeftRadius: eink ? 0 : 28, borderTopRightRadius: eink ? 0 : 28 }, !eink && s.shadow]}>
+      borderTopColor: eink ? colors.text : colors.line, borderTopWidth: eink ? 1.5 : StyleSheet.hairlineWidth, borderTopLeftRadius: eink ? 0 : 28, borderTopRightRadius: eink ? 0 : 28 }]}>
       <View style={s.chapterRow}>
         <Pressable accessibilityRole="button" accessibilityLabel="上一章" onPress={p.onPrevChapter} hitSlop={8}><Text style={{ color: colors.text, fontSize: 13, fontWeight: '600' }}>上一章</Text></Pressable>
         <ChapterSlider colors={colors} chapter={p.chapter} chapterCount={p.chapterCount} onSeek={p.onSeekChapter} onPrev={p.onPrevChapter} onNext={p.onNextChapter} />
@@ -120,7 +119,6 @@ export function ReaderBottomPanel(p: {
       </View>
       {/* Sibling buttons, not nested: VoiceOver cannot focus a button inside another button. */}
       <View style={[s.listenCard, { borderRadius: eink ? 6 : 22, backgroundColor: eink ? colors.surface : colors.accent, borderWidth: eink ? 1.5 : 0, borderColor: colors.text }]}>
-        {!eink && !colors.dark && <Gradient from={colors.accent} to={brand.deep} id="listen" />}
         <Pressable accessibilityRole="button" accessibilityLabel="打开听书播放器" onPress={p.onOpenPlayer} style={({ pressed }) => [s.listenOpen, pressed && { opacity: 0.7 }]}>
           <Text style={{ color: cardText, fontSize: 15, fontWeight: '700', fontFamily: SERIF }}>{playing ? '正在朗读' : p.player.active ? '已暂停' : '从本句开始听'}</Text>
           <Text style={{ color: cardText, opacity: 0.75, fontSize: 11, marginTop: 3 }}>{p.player.buffering && playing ? '正在准备声音…' : '整句高亮 · 自动翻页跟读'}</Text>
@@ -150,7 +148,7 @@ export function ListenFab({ colors, player, onPress, onLongPress }: { colors: Re
   const playing = player.active && !player.paused;
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={playing ? '暂停朗读' : '开始朗读'} accessibilityHint="长按打开听书播放器" onPress={onPress} onLongPress={onLongPress}
-      style={({ pressed }) => [s.fab, { backgroundColor: eink ? colors.surface : colors.accent, borderRadius: eink ? 6 : 24, borderWidth: eink ? 1.5 : 0, borderColor: colors.text }, !eink && s.shadow, pressed && { opacity: 0.8 }]}>
+      style={({ pressed }) => [s.fab, { backgroundColor: eink ? colors.surface : colors.accent, borderRadius: eink ? 6 : 24, borderWidth: eink ? 1.5 : StyleSheet.hairlineWidth, borderColor: eink ? colors.text : colors.line }, pressed && { opacity: 0.8 }]}>
       {player.buffering && playing ? <ActivityIndicator color={eink ? colors.text : colors.onAccent} /> : <Icon name={playing ? 'pause' : 'headphones'} size={21} color={eink ? colors.text : colors.onAccent} />}
     </Pressable>
   );
@@ -195,7 +193,6 @@ export function PlayerSheet(p: {
       supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}>
       <SafeAreaProvider>
         <View style={{ flex: 1, backgroundColor: eink ? colors.background : brand.deep }}>
-          {!eink && <Gradient from={brand.green} to={brand.deepest} id="player" />}
           <SafeAreaView edges={['top', 'bottom', 'left', 'right']} style={{ flex: 1 }}>
             <View style={s.playerHead}>
               <Pressable accessibilityRole="button" accessibilityLabel="收起播放器" onPress={p.onClose} hitSlop={8}
@@ -261,7 +258,6 @@ export function SettingsCard({ colors, children }: { colors: ReadingTheme; child
 }
 
 const s = StyleSheet.create({
-  shadow: { shadowColor: brand.ink, shadowOpacity: 0.1, shadowRadius: 18, shadowOffset: { width: 0, height: 4 }, elevation: 6 },
   top: { position: 'absolute', top: 0, minHeight: 60, paddingHorizontal: 14, paddingVertical: 8, flexDirection: 'row', alignItems: 'center', gap: 8 },
   bottom: { position: 'absolute', bottom: 0, paddingTop: 14, paddingBottom: 8, gap: 10 },
   chapterRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },

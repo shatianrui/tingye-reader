@@ -17,7 +17,6 @@ import {useLibraryUI} from '../tingye/library-ui';
 import type { Chapter } from '../types/models';
 import BookCover from '../components/BookCover';
 import Icon, { type IconName } from '../components/Icon';
-import Gradient from '../components/Gradient';
 import { useAppTheme } from '../theme/useAppTheme';
 import { spacing as spacingTokens, brand } from '../theme/tokens';
 
@@ -133,22 +132,20 @@ export default function BookDetailScreen({ route, navigation }: Props) {
   const selectionBarHeight = insets.top + 116;
 
   const hero = book ? (
-    <View style={styles.hero}>
-      <Gradient from={brand.green} to={brand.deep} id="book-detail" />
-      <View style={styles.heroGlow} />
+    <View style={[styles.hero, { backgroundColor: theme.colors.inverseSurface }]}>
       <View style={styles.heroInner}>
         <View style={styles.heroTop}>
           <View style={styles.heroCover}><BookCover book={book} width={104} height={146} /></View>
           <View style={styles.heroInfo}>
-            <Text numberOfLines={1} style={styles.heroOverline}>{book.category}</Text>
-            <Text style={styles.heroTitle} numberOfLines={3}>{book.title}</Text>
-            {!!book.author && <Text style={styles.heroAuthor} numberOfLines={1}>{book.author}</Text>}
+            <Text numberOfLines={1} style={[styles.heroOverline, { color: brand.gold }]}>{book.category}</Text>
+            <Text style={[styles.heroTitle, { color: theme.colors.inverseOnSurface }]} numberOfLines={3}>{book.title}</Text>
+            {!!book.author && <Text style={[styles.heroAuthor, { color: theme.colors.inverseOnSurface }]} numberOfLines={1}>{book.author}</Text>}
             <View style={styles.heroStats}>
-              <HeroStat label="章节" value={String(totalChapters || '—')} />
+              <HeroStat label="章节" value={String(totalChapters || '—')} ink={theme.colors.inverseOnSurface} />
               <HeroDivider />
-              <HeroStat label="当前" value={`第 ${(nativeBook?.chapter || 0) + 1} 章`} />
+              <HeroStat label="当前" value={`第 ${(nativeBook?.chapter || 0) + 1} 章`} ink={theme.colors.inverseOnSurface} />
               <HeroDivider />
-              <HeroStat label="藏书" value={nativeBook?.sample ? '示例' : '已导入'} />
+              <HeroStat label="藏书" value={nativeBook?.sample ? '示例' : '已导入'} ink={theme.colors.inverseOnSurface} />
             </View>
           </View>
         </View>
@@ -156,12 +153,12 @@ export default function BookDetailScreen({ route, navigation }: Props) {
         {percent > 0 ? (
           <View style={styles.heroProgress}>
             <View style={styles.heroProgressRow}>
-              <Text style={styles.heroProgressTitle}>已读 {Math.round(percent * 100)}%</Text>
-              <Text style={styles.heroProgressMeta}>
+              <Text style={[styles.heroProgressTitle, { color: theme.colors.inverseOnSurface }]}>已读 {Math.round(percent * 100)}%</Text>
+              <Text style={[styles.heroProgressMeta, { color: theme.colors.inverseOnSurface }]}>
                 第 {Math.min(totalChapters, (nativeBook?.chapter || 0) + 1)} / {totalChapters} 章
               </Text>
             </View>
-            <View style={styles.heroTrack}>
+            <View style={[styles.heroTrack, { backgroundColor: theme.scheme === 'dark' ? 'rgba(28,28,30,0.16)' : 'rgba(255,255,255,0.18)' }]}>
               <View style={{ width: `${Math.round(percent * 100)}%`, height: '100%', borderRadius: 2, backgroundColor: brand.gold }} />
             </View>
           </View>
@@ -172,19 +169,19 @@ export default function BookDetailScreen({ route, navigation }: Props) {
             accessibilityRole="button"
             accessibilityLabel={percent > 0 ? `继续阅读 ${book.title}` : `开始阅读 ${book.title}`}
             onPress={() => openReader(undefined)}
-            style={({ pressed }) => [styles.ctaRead, pressed && { opacity: 0.88 }]}
+            style={({ pressed }) => [styles.ctaRead, { backgroundColor: theme.colors.inverseOnSurface }, pressed && { opacity: 0.88 }]}
           >
-            <Icon name="play" size={16} color={brand.deep} />
-            <Text style={styles.ctaReadText}>{percent > 0 ? '继续阅读' : '开始阅读'}</Text>
+            <Icon name="play" size={16} color={theme.colors.inverseSurface} />
+            <Text style={[styles.ctaReadText, { color: theme.colors.inverseSurface }]}>{percent > 0 ? '继续阅读' : '开始阅读'}</Text>
           </Pressable>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={`听书 ${book.title}`}
             onPress={() => navigation.navigate('Reader', { bookId: book.id, listen: true })}
-            style={({ pressed }) => [styles.ctaListen, pressed && { opacity: 0.7 }]}
+            style={({ pressed }) => [styles.ctaListen, { borderColor: theme.scheme === 'dark' ? 'rgba(28,28,30,0.35)' : 'rgba(255,255,255,0.5)' }, pressed && { opacity: 0.7 }]}
           >
-            <Icon name="headphones" size={16} color="#FFFFFF" />
-            <Text style={styles.ctaListenText}>听书</Text>
+            <Icon name="headphones" size={16} color={theme.colors.inverseOnSurface} />
+            <Text style={[styles.ctaListenText, { color: theme.colors.inverseOnSurface }]}>听书</Text>
           </Pressable>
         </View>
       </View>
@@ -373,18 +370,19 @@ export default function BookDetailScreen({ route, navigation }: Props) {
 
 /** Frosted circular buttons floating over the brand hero. */
 function FloatingNav({ insetTop, onBack, onVoice }: { insetTop: number; onBack: () => void; onVoice?: () => void }) {
+  const theme = useAppTheme();
   return (
     <View style={[styles.floatingNav, { paddingTop: insetTop + 8 }]} pointerEvents="box-none">
       <View style={styles.floatingRow}>
-        <NavCircle icon="back" label="返回书架" onPress={onBack} />
+        <NavCircle icon="back" label="返回书架" onPress={onBack} fg={theme.colors.inverseOnSurface} />
         <View style={{ flex: 1 }} />
-        {onVoice ? <NavCircle icon="mic" label="语音设置" onPress={onVoice} /> : null}
+        {onVoice ? <NavCircle icon="mic" label="语音设置" onPress={onVoice} fg={theme.colors.inverseOnSurface} /> : null}
       </View>
     </View>
   );
 }
 
-function NavCircle({ icon, label, onPress }: { icon: IconName; label: string; onPress: () => void }) {
+function NavCircle({ icon, label, onPress, fg }: { icon: IconName; label: string; onPress: () => void; fg: string }) {
   return (
     <Pressable
       accessibilityRole="button"
@@ -393,16 +391,16 @@ function NavCircle({ icon, label, onPress }: { icon: IconName; label: string; on
       hitSlop={6}
       style={({ pressed }) => [styles.navCircle, pressed && { opacity: 0.75 }]}
     >
-      <Icon name={icon} size={20} color="#FFFFFF" />
+      <Icon name={icon} size={20} color={fg} />
     </Pressable>
   );
 }
 
-function HeroStat({ label, value }: { label: string; value: string }) {
+function HeroStat({ label, value, ink }: { label: string; value: string; ink: string }) {
   return (
     <View style={styles.heroStat}>
-      <Text numberOfLines={1} style={styles.heroStatValue}>{value}</Text>
-      <Text style={styles.heroStatLabel}>{label}</Text>
+      <Text numberOfLines={1} style={[styles.heroStatValue, { color: ink }]}>{value}</Text>
+      <Text style={[styles.heroStatLabel, { color: ink }]}>{label}</Text>
     </View>
   );
 }
@@ -505,31 +503,30 @@ const styles = StyleSheet.create({
   screen: { flex: 1 },
   missing: { flex: 1, minHeight: 240, alignItems: 'center', justifyContent: 'center' },
 
-  // ----- Brand hero -----
-  hero: { overflow: 'hidden', borderBottomLeftRadius: 28, borderBottomRightRadius: 28 },
-  heroGlow: { position: 'absolute', width: 220, height: 220, borderRadius: 110, right: -80, top: -90, backgroundColor: 'rgba(201,162,89,0.18)' },
+  // ----- Flat ink hero -----
+  hero: { overflow: 'hidden', borderBottomLeftRadius: 24, borderBottomRightRadius: 24 },
   heroInner: { width: '100%', maxWidth: CONTENT_MAX_WIDTH, alignSelf: 'center', paddingHorizontal: spacingTokens.xl, paddingTop: 64, paddingBottom: spacingTokens.xl },
   heroTop: { flexDirection: 'row' },
-  heroCover: { shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 10 },
+  heroCover: {},
   heroInfo: { flex: 1, marginLeft: spacingTokens.xl, justifyContent: 'flex-end' },
-  heroOverline: { color: brand.gold, fontSize: 12, fontWeight: '700', letterSpacing: 2 },
-  heroTitle: { color: '#FFFFFF', fontFamily: brand.serif, fontSize: 22, fontWeight: '700', lineHeight: 30, marginTop: 6 },
-  heroAuthor: { color: 'rgba(255,255,255,0.7)', fontSize: 13, marginTop: spacingTokens.xs },
+  heroOverline: { fontSize: 12, fontWeight: '700', letterSpacing: 2 },
+  heroTitle: { fontFamily: brand.serif, fontSize: 22, fontWeight: '700', lineHeight: 30, marginTop: 6 },
+  heroAuthor: { fontSize: 13, marginTop: spacingTokens.xs, opacity: 0.7 },
   heroStats: { flexDirection: 'row', alignItems: 'center', marginTop: spacingTokens.lg },
   heroStat: { flex: 1 },
-  heroStatValue: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
-  heroStatLabel: { color: 'rgba(255,255,255,0.62)', fontSize: 10, marginTop: 3, letterSpacing: 0.4 },
-  heroDivider: { width: StyleSheet.hairlineWidth, height: 22, marginHorizontal: spacingTokens.md, backgroundColor: 'rgba(255,255,255,0.22)' },
+  heroStatValue: { fontSize: 14, fontWeight: '700' },
+  heroStatLabel: { fontSize: 10, marginTop: 3, letterSpacing: 0.4, opacity: 0.62 },
+  heroDivider: { width: StyleSheet.hairlineWidth, height: 22, marginHorizontal: spacingTokens.md, backgroundColor: 'rgba(128,128,128,0.4)' },
   heroProgress: { marginTop: spacingTokens.xl },
   heroProgressRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacingTokens.sm },
-  heroProgressTitle: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
-  heroProgressMeta: { color: 'rgba(255,255,255,0.65)', fontSize: 11 },
-  heroTrack: { height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.18)', overflow: 'hidden' },
+  heroProgressTitle: { fontSize: 13, fontWeight: '700' },
+  heroProgressMeta: { fontSize: 11, opacity: 0.65 },
+  heroTrack: { height: 4, borderRadius: 2, overflow: 'hidden' },
   ctaRow: { flexDirection: 'row', gap: spacingTokens.md, marginTop: spacingTokens.xl },
-  ctaRead: { flex: 1.4, height: 48, borderRadius: 24, backgroundColor: '#FFFFFF', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
-  ctaReadText: { color: brand.deep, fontSize: 15, fontWeight: '700' },
-  ctaListen: { flex: 1, height: 48, borderRadius: 24, borderWidth: 1, borderColor: 'rgba(255,255,255,0.5)', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
-  ctaListenText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
+  ctaRead: { flex: 1.4, height: 48, borderRadius: 24, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
+  ctaReadText: { fontSize: 15, fontWeight: '700' },
+  ctaListen: { flex: 1, height: 48, borderRadius: 24, borderWidth: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  ctaListenText: { fontSize: 15, fontWeight: '700' },
 
   // ----- Floating nav -----
   floatingNav: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 20, paddingHorizontal: spacingTokens.lg },
@@ -569,11 +566,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacingTokens.xl,
     paddingTop: spacingTokens.md,
     borderTopWidth: StyleSheet.hairlineWidth,
-    shadowColor: brand.ink,
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: -4 },
-    elevation: 8,
   },
   managePill: {
     height: 48,
