@@ -6,29 +6,33 @@ function providerError(code:number|undefined){
   return new Error(code===1008?'MiniMax 语音额度不足，请检查账户余额。':code===1004?'MiniMax 密钥无效或没有语音权限。':`MiniMax 语音服务返回错误（${code??'未知'}），请检查语音权限与额度。`);
 }
 function checked(result:MiniMaxResult){if(result.base_resp&&result.base_resp.status_code!==0)throw providerError(result.base_resp.status_code);return result;}
-async function minimaxFetch(path: '/t2a_v2' | '/get_voice', body: unknown) {
-  if (!env.MINIMAX_API_KEY) throw new Error('MiniMax 尚未配置服务端密钥。');
+// Per-request user credentials take priority over server env keys.
+export type MiniMaxCreds={key?:string;groupId?:string;model?:string};
+async function minimaxFetch(path: '/t2a_v2' | '/get_voice', body: unknown, creds: MiniMaxCreds = {}) {
+  const key=creds.key||env.MINIMAX_API_KEY;
+  if (!key) throw new Error('MiniMax 尚未配置密钥。请在设置中输入自己的 API 密钥。');
+  const groupId=creds.groupId||env.MINIMAX_GROUP_ID;
   const origin=env.MINIMAX_REGION==='global'?'https://api.minimax.io':'https://api.minimax.cn';
   const url=new URL('/v1'+path,origin);
-  if(env.MINIMAX_GROUP_ID)url.searchParams.set('GroupId',env.MINIMAX_GROUP_ID);
+  if(groupId)url.searchParams.set('GroupId',groupId);
   let response:Response;
-  try {response=await fetch(url,{method:'POST',headers:{Authorization:`Bearer ${env.MINIMAX_API_KEY}`,'Content-Type':'application/json'},body:JSON.stringify(body),redirect:'manual',signal:AbortSignal.timeout(45000)});}
+  try {response=await fetch(url,{method:'POST',headers:{Authorization:`Bearer ${key}`,'Content-Type':'application/json'},body:JSON.stringify(body),redirect:'manual',signal:AbortSignal.timeout(45000)});}
   catch(error){const e=error as Error & {cause?:{code?:string;message?:string}};console.warn('MiniMax transport failed',{name:e.name,code:e.cause?.code,message:e.cause?.message||e.message});throw new Error('MiniMax 连接失败，请稍后重试。');}
   // Workers only supports manual/follow; never forward the API key on redirects.
   if(response.status>=300&&response.status<400)throw new Error('MiniMax 服务地址发生跳转，请检查服务端区域配置。');
   if(!response.ok)throw new Error(`MiniMax 请求失败（${response.status}），请检查密钥、权限与额度。`);
   return response;
 }
-export async function minimaxRequest(path: '/t2a_v2' | '/get_voice', body: unknown) {
-  const result=checked(await (await minimaxFetch(path,body)).json() as MiniMaxResult);
+export async function minimaxRequest(path: '/t2a_v2' | '/get_voice', body: unknown, creds: MiniMaxCreds = {}) {
+  const result=checked(await (await minimaxFetch(path,body,creds)).json() as MiniMaxResult);
   if(result.base_resp?.status_code!==0)throw providerError(result.base_resp?.status_code);
   return result;
 }
 // MiniMax's non-streaming body is delivered far slower than real time from
 // this server (about 21 s for 30 s of audio), while SSE delivers the same
 // audio in about 2 s. Aggregate the stream so clients still get one file.
-async function minimaxStreamedAudio(body:Record<string,unknown>){
-  const response=await minimaxFetch('/t2a_v2',{...body,stream:true,stream_options:{exclude_aggregated_audio:true}});
+async function minimaxStreamedAudio(body:Record<string,unknown>,creds:MiniMaxCreds={}){
+  const response=await minimaxFetch('/t2a_v2',{...body,stream:true,stream_options:{exclude_aggregated_audio:true}},creds);
   if(!response.headers.get('content-type')?.includes('event-stream')){
     // Errors are returned as ordinary JSON before any audio is produced.
     const result=checked(await response.json() as MiniMaxResult);
@@ -90,21 +94,21 @@ export function minimaxFileUrl(value:unknown){
   if(typeof value!=='string'||value.length>4096)return undefined;
   try{const url=new URL(value);return url.protocol==='https:'&&OSS_HOST.test(url.hostname)&&!url.port&&!url.username&&!url.password?url.href:undefined;}catch{return undefined;}
 }
-function speechRequest(input:string,voice:string,withTiming:boolean,audio_setting:Record<string,unknown>){
-  return {model:env.MINIMAX_MODEL||'speech-2.8-hd',text:input,...(withTiming?{subtitle_enable:true,subtitle_type:'word'}:{}),language_boost:'auto',voice_setting:{voice_id:voice,speed:1,vol:1,pitch:0},audio_setting};
+function speechRequest(input:string,voice:string,withTiming:boolean,audio_setting:Record<string,unknown>,creds:MiniMaxCreds={}){
+  return {model:creds.model||env.MINIMAX_MODEL||'speech-2.8-hd',text:input,...(withTiming?{subtitle_enable:true,subtitle_type:'word'}:{}),language_boost:'auto',voice_setting:{voice_id:voice,speed:1,vol:1,pitch:0},audio_setting};
 }
 // The server sits outside mainland China while MiniMax and most listeners are
 // inside it. Opt-in clients download the provider's signed files directly,
 // so audio never crosses the congested border link twice.
-export async function minimaxAudioUrl(input:string,voice:string,withTiming=false){
-  const result=await minimaxRequest('/t2a_v2',{...speechRequest(input,voice,withTiming,{format:'mp3',sample_rate:32000,bitrate:128000,channel:1}),stream:false,output_format:'url'});
+export async function minimaxAudioUrl(input:string,voice:string,withTiming=false,creds:MiniMaxCreds={}){
+  const result=await minimaxRequest('/t2a_v2',{...speechRequest(input,voice,withTiming,{format:'mp3',sample_rate:32000,bitrate:128000,channel:1},creds),stream:false,output_format:'url'},creds);
   const url=minimaxFileUrl(result.data?.audio),subtitleUrl=withTiming?minimaxFileUrl(result.data?.subtitle_file):undefined;
   if(!url)return undefined;
   return Response.json({format:'mp3',delivery:'url',url,...(subtitleUrl?{subtitleUrl}:{})},{headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
 }
-export async function minimaxAudio(input:string,voice:string,withTiming=false) {
+export async function minimaxAudio(input:string,voice:string,withTiming=false,creds:MiniMaxCreds={}) {
   // Proxied audio crosses the border twice; 64 kbps mono keeps speech clear at half the bytes.
-  const result=await minimaxStreamedAudio({...speechRequest(input,voice,withTiming,{format:'mp3',sample_rate:24000,bitrate:64000,channel:1}),output_format:'hex'});
+  const result=await minimaxStreamedAudio({...speechRequest(input,voice,withTiming,{format:'mp3',sample_rate:24000,bitrate:64000,channel:1},creds),output_format:'hex'},creds);
   const hex=result.audio;
   if(typeof hex!=='string'||!hex.length||hex.length>MAX_AUDIO_HEX||hex.length%2||!/^[0-9a-f]+$/i.test(hex))throw new Error('MiniMax 未返回有效音频。');
   if(withTiming){

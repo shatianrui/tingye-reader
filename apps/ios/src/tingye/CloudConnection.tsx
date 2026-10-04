@@ -12,10 +12,9 @@ export default function CloudConnection({colors}:{colors:ReadingTheme}) {
   try {
    const result=await api<{user:{username:string}|null}>('/api/auth',{signal:AbortSignal.timeout(10000)});
    if(!result.user){setMessage('已连接听页云端 · 请登录以检测语音配置');return;}
-   const tts=await api<{glm:{configured:boolean;model:string};minimax:{configured:boolean;model:string};limits?:{dailyCharacters:number;requestsPerMinute:number;maxCharactersPerRequest:number}}> ('/api/tts',{signal:AbortSignal.timeout(10000)});
-   const describe=(name:string,config:{configured:boolean;model:string})=>`${name}：${config.configured?'服务端已配置 · '+config.model:'未配置服务端密钥'}`;
+   const tts=await api<{limits?:{dailyCharacters:number;requestsPerMinute:number;maxCharactersPerRequest:number}}> ('/api/tts',{signal:AbortSignal.timeout(10000)});
    const limits=tts.limits?`\n应用每日字数：${tts.limits.dailyCharacters===0?'不限':tts.limits.dailyCharacters}；每分钟 ${tts.limits.requestsPerMinute} 次。单次 ${tts.limits.maxCharactersPerRequest} 字，App 自动分段。临时限流会等待重试，服务商余额和配额另计。`:'';
-   setMessage(`已连接 · 当前账号 ${result.user.username}\n${describe('GLM',tts.glm)}\n${describe('MiniMax',tts.minimax)}${limits}\n此检测不调用付费合成；密钥有效性及余额以实际播放结果为准。`);
+   setMessage(`已连接 · 当前账号 ${result.user.username}\nGLM 与 MiniMax 使用下方填写的自有密钥合成。${limits}\n此检测不调用付费合成；密钥有效性及余额以实际播放结果为准。`);
   } catch(error) {setMessage(error instanceof Error?error.message:'连接失败，请重试。');}
   finally {setChecking(false);}
  };
