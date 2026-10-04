@@ -63,7 +63,9 @@ test('streams audio chunks, keeps inline word timing, and rejects provider or tr
   next=()=>sse([{data:{audio:'4944',status:1}}]);
   await assert.rejects(minimaxAudio('你好','male-qn-qingse'),/意外中断/,'a partial clip must never be played as complete audio');
   next=()=>Response.json({base_resp:{status_code:1004}});
-  await assert.rejects(minimaxAudio('你好','male-qn-qingse'),/密钥无效/);
+  await assert.rejects(minimaxAudio('你好','male-qn-qingse'),/参数无效/);
+  next=()=>Response.json({base_resp:{status_code:2049,status_msg:'invalid api key'}});
+  await assert.rejects(minimaxAudio('你好','male-qn-qingse'),/密钥无效.*invalid api key/);
  }finally{globalThis.fetch=originalFetch;if(oldKey===undefined)delete process.env.MINIMAX_API_KEY;else process.env.MINIMAX_API_KEY=oldKey;}
 });
 

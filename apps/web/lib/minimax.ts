@@ -2,17 +2,20 @@ const env = process.env;
 
 const MAX_AUDIO_HEX=16*1024*1024;
 type MiniMaxResult={base_resp?:{status_code:number;status_msg?:string};data?:{audio?:string;status?:number;subtitle_file?:string;subtitle?:unknown;subtitles?:unknown};system_voice?:MiniMaxVoice[];voice_cloning?:MiniMaxVoice[];voice_generation?:MiniMaxVoice[]};
-function providerError(code:number|undefined){
-  return new Error(code===1008?'MiniMax 语音额度不足，请检查账户余额。':code===1004?'MiniMax 密钥无效或没有语音权限。':`MiniMax 语音服务返回错误（${code??'未知'}），请检查语音权限与额度。`);
+function providerError(code:number|undefined,msg?:string){
+  const detail=msg?`（${msg}）`:'';
+  return new Error(code===1008?`MiniMax 语音额度不足，请检查账户余额${detail}`:code===1004?`MiniMax 请求参数无效${detail}，请检查密钥与 GroupId 是否匹配。`:code===2049?`MiniMax 密钥无效${detail}，请检查 API 密钥。`:code===2013?`MiniMax 参数异常${detail}，请检查模型与音色。`:`MiniMax 语音服务返回错误（${code??'未知'}${detail}），请检查密钥、GroupId、语音权限与额度。`);
 }
-function checked(result:MiniMaxResult){if(result.base_resp&&result.base_resp.status_code!==0)throw providerError(result.base_resp.status_code);return result;}
+function checked(result:MiniMaxResult){if(result.base_resp&&result.base_resp.status_code!==0)throw providerError(result.base_resp.status_code,result.base_resp.status_msg);return result;}
 // Per-request user credentials take priority over server env keys.
 export type MiniMaxCreds={key?:string;groupId?:string;model?:string};
 async function minimaxFetch(path: '/t2a_v2' | '/get_voice', body: unknown, creds: MiniMaxCreds = {}) {
   const key=creds.key||env.MINIMAX_API_KEY;
   if (!key) throw new Error('MiniMax 尚未配置密钥。请在设置中输入自己的 API 密钥。');
   const groupId=creds.groupId||env.MINIMAX_GROUP_ID;
-  const origin=env.MINIMAX_REGION==='global'?'https://api.minimax.io':'https://api.minimax.cn';
+  // China region T2A is served by api.minimaxi.com (api.minimax.cn only hosts
+  // chat/Anthropic-compatible APIs); the international site is api.minimax.io.
+  const origin=env.MINIMAX_REGION==='global'?'https://api.minimax.io':'https://api.minimaxi.com';
   const url=new URL('/v1'+path,origin);
   if(groupId)url.searchParams.set('GroupId',groupId);
   let response:Response;

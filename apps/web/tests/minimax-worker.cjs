@@ -18,7 +18,7 @@ const { Miniflare } = require('miniflare');
       bindings: { MINIMAX_API_KEY: 'test-only', MINIMAX_REGION: 'cn' } },
     { name: 'upstream', modules: true, compatibilityDate: '2026-05-15', script: `
       export default { async fetch(req) {
-        if(new URL(req.url).hostname!=='api.minimax.cn') return new Response('Redirect followed unexpectedly', {status:500});
+        if(new URL(req.url).hostname!=='api.minimaxi.com') return new Response('Redirect followed unexpectedly', {status:500});
         if((await req.json()).redirectTest) return Response.redirect('https://unexpected.example/', 307);
         return Response.json({base_resp:{status_code:0},system_voice:[{voice_id:'test'}]});
       }};` },
