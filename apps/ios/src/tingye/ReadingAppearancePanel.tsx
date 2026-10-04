@@ -37,7 +37,7 @@ export default function ReadingAppearancePanel({prefs, setPrefs, colors, fontsRe
     </SettingsCard>
     <Pressable accessibilityRole="switch" accessibilityState={{checked: !!colors.eink}} onPress={onToggleEink} style={[styles.einkCard, {backgroundColor: colors.eink ? colors.surface : colors.highlight + '55', borderColor: colors.eink ? colors.text : colors.line, borderWidth: colors.eink ? 1.5 : StyleSheet.hairlineWidth, borderRadius: colors.eink ? 4 : 20}]}>
       <View style={[styles.einkIcon, {borderColor: colors.text, borderRadius: colors.eink ? 4 : 14}]}><Icon name="eink" size={24} color={colors.text}/></View>
-      <View style={{flex: 1}}><Text style={{color: colors.text, fontSize: 16, fontWeight: '700', fontFamily: brand.serif}}>电纸书模式</Text><Text style={{color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: 4}}>高对比灰阶 · 衬线字体 · 单页留白 · 无动画，接近 Kindle 电子墨水屏。</Text></View>
+      <View style={{flex: 1}}><Text style={{color: colors.text, fontSize: 16, fontWeight: '700'}}>电纸书模式</Text><Text style={{color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: 4}}>高对比灰阶 · 衬线字体 · 单页留白 · 无动画，接近 Kindle 电子墨水屏。</Text></View>
       <View style={[styles.toggle, {backgroundColor: colors.eink ? colors.text : colors.line, borderRadius: colors.eink ? 4 : 14}]}><View style={[styles.toggleKnob, {backgroundColor: colors.surface, alignSelf: colors.eink ? 'flex-end' : 'flex-start', borderRadius: colors.eink ? 2 : 11}]}/></View>
     </Pressable>
     <SettingsCard colors={colors}>

@@ -112,7 +112,6 @@ export function ReaderErrorBanner({
           bottom,
           backgroundColor: colors.surface,
           borderColor: colors.line,
-          shadowColor: colors.accent,
         },
       ]}
       accessibilityRole="alert"

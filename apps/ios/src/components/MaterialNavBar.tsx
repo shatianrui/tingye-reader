@@ -2,7 +2,6 @@ import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '../theme/useAppTheme';
-import { brand } from '../theme/tokens';
 import MaterialNavIcon from './MaterialNavIcon';
 import type { IconName } from './Icon';
 
@@ -21,7 +20,7 @@ export interface MaterialNavBarProps {
 /** Height reserved at the bottom of tab screens so content clears the floating bar. */
 export const FLOATING_TAB_BAR_SPACE = 104;
 
-/** Floating pill tab bar from the 听页 design (20pt inset, 62pt tall). */
+/** Floating pill tab bar — flat, borderless-shadow design (20pt inset, 62pt tall). */
 export default function MaterialNavBar({ items }: MaterialNavBarProps) {
   const theme = useAppTheme();
   const insets = useSafeAreaInsets();
@@ -31,7 +30,7 @@ export default function MaterialNavBar({ items }: MaterialNavBarProps) {
       <View
         accessibilityRole="tablist"
         style={[styles.bar, {
-          backgroundColor: dark ? 'rgba(29,41,35,0.96)' : 'rgba(255,255,255,0.94)',
+          backgroundColor: dark ? 'rgba(22,22,24,0.96)' : 'rgba(255,255,255,0.96)',
           borderColor: theme.colors.outlineVariant,
         }]}
       >
@@ -48,6 +47,5 @@ const styles = StyleSheet.create({
   bar: {
     width: '100%', maxWidth: 520, height: 62, borderRadius: 31, flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: 7, borderWidth: StyleSheet.hairlineWidth,
-    shadowColor: brand.ink, shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.12, shadowRadius: 24, elevation: 8,
   },
 });

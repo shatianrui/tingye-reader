@@ -4,7 +4,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { DisplayText as Text } from './DisplayText';
 import Icon, { type IconName } from './Icon';
 import { useAppTheme } from '../theme/useAppTheme';
-import { brand } from '../theme/tokens';
 
 export type HeaderAction = { icon: IconName; label: string; onPress: () => void; disabled?: boolean };
 
@@ -18,7 +17,7 @@ export function RoundButton({ icon, label, onPress, disabled }: HeaderAction) {
   );
 }
 
-/** Large serif page title with circular actions (书架 / 发现 / 我). */
+/** Large page title with circular actions (书架 / 发现 / 我). */
 export default function ScreenHeader({ title, subtitle, actions = [] }: { title: string; subtitle?: string; actions?: HeaderAction[] }) {
   const theme = useAppTheme();
   const insets = useSafeAreaInsets();
@@ -35,7 +34,7 @@ export default function ScreenHeader({ title, subtitle, actions = [] }: { title:
 
 const styles = StyleSheet.create({
   wrap: { flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 20, paddingBottom: 14, width: '100%', maxWidth: 1100, alignSelf: 'center' },
-  title: { fontFamily: brand.serif, fontSize: 32, fontWeight: '700', letterSpacing: 1 },
+  title: { fontSize: 30, fontWeight: '700', letterSpacing: 0.2 },
   subtitle: { fontSize: 13, marginTop: 4 },
   actions: { flexDirection: 'row', gap: 10, marginBottom: 4 },
   round: { width: 40, height: 40, borderRadius: 20, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'center' },

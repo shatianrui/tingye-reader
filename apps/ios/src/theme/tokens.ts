@@ -1,5 +1,5 @@
 /**
- * Design tokens for the 听页 app chrome (1.9 Figma redesign).
+ * Design tokens for the 听页 app chrome (2.0 极简现代 redesign).
  *
  * The reading surface keeps its own palette (`src/tingye/themes.ts`) because
  * reading mode must not depend on the host app's chrome theme.
@@ -7,9 +7,10 @@
  * This file is the single source of truth for the rest of the app:
  * navigation, shelves, lists, detail pages, search, profile and account.
  *
- * Color palette: warm forest green (#2B5C4B) on paper (#F6F3EA) with a gold
- * accent (#C9A259). Role names follow Material 3 so surfaces stay layered
- * without heavy shadows.
+ * Color palette: neutral monochrome — near-black ink on white, layered gray
+ * surfaces, hairline dividers. No shadows, no gradients; depth comes from
+ * tonal layering only. The brand gold (#C9A259) survives only in `brand.*`
+ * as a sparing accent for the player highlight.
  */
 
 import { Platform } from 'react-native';
@@ -71,90 +72,93 @@ export interface AppColors {
 }
 
 export const lightColors: AppColors = {
-  primary: '#2B5C4B',
+  primary: '#1C1C1E',
   onPrimary: '#FFFFFF',
-  primaryContainer: '#E2EBE4',
-  onPrimaryContainer: '#1C3E33',
-  secondary: '#6E776F',
+  primaryContainer: '#E8E8ED',
+  onPrimaryContainer: '#1C1C1E',
+  secondary: '#636366',
   onSecondary: '#FFFFFF',
-  secondaryContainer: '#E2EBE4',
-  onSecondaryContainer: '#1C3E33',
-  tertiary: '#C9A259',
-  onTertiary: '#1E2A23',
-  tertiaryContainer: '#EFDFB4',
-  onTertiaryContainer: '#4A3A14',
+  secondaryContainer: '#E8E8ED',
+  onSecondaryContainer: '#1C1C1E',
+  tertiary: '#8A8A8E',
+  onTertiary: '#FFFFFF',
+  tertiaryContainer: '#F2F2F7',
+  onTertiaryContainer: '#3A3A3C',
   error: '#B3261E',
   onError: '#FFFFFF',
   errorContainer: '#F9DEDC',
   onErrorContainer: '#410E0B',
-  background: '#F6F3EA',
-  onBackground: '#1E2A23',
-  surface: '#F6F3EA',
-  onSurface: '#1E2A23',
-  surfaceVariant: '#EDE9DD',
-  onSurfaceVariant: '#6E776F',
+  background: '#FFFFFF',
+  onBackground: '#1C1C1E',
+  surface: '#FFFFFF',
+  onSurface: '#1C1C1E',
+  surfaceVariant: '#F2F2F7',
+  onSurfaceVariant: '#636366',
   surfaceContainerLowest: '#FFFFFF',
-  surfaceContainerLow: '#FFFDF8',
-  surfaceContainer: '#F1EDE2',
-  surfaceContainerHigh: '#ECE7DA',
-  surfaceContainerHighest: '#E6E1D4',
-  outline: '#A5ABA2',
-  outlineVariant: '#E6E1D4',
-  shadow: '#1E2A23',
+  surfaceContainerLow: '#FAFAFC',
+  surfaceContainer: '#F5F5F7',
+  surfaceContainerHigh: '#ECECF0',
+  surfaceContainerHighest: '#E5E5EA',
+  outline: '#AEAEB2',
+  outlineVariant: '#E5E5EA',
+  shadow: '#000000',
   scrim: '#000000',
-  inverseSurface: '#1C3E33',
-  inverseOnSurface: '#F6F3EA',
-  inversePrimary: '#9FC7B5',
+  inverseSurface: '#1C1C1E',
+  inverseOnSurface: '#F5F5F7',
+  inversePrimary: '#F5F5F7',
 };
 
 export const darkColors: AppColors = {
-  primary: '#9FC7B5',
-  onPrimary: '#0F2A21',
-  primaryContainer: '#244A3C',
-  onPrimaryContainer: '#DDEBE3',
-  secondary: '#A9B3AB',
-  onSecondary: '#1C2621',
-  secondaryContainer: '#2A3A32',
-  onSecondaryContainer: '#DDEBE3',
-  tertiary: '#D9B870',
-  onTertiary: '#2E230A',
-  tertiaryContainer: '#4A3A14',
-  onTertiaryContainer: '#EFDFB4',
+  primary: '#F5F5F7',
+  onPrimary: '#1C1C1E',
+  primaryContainer: '#2C2C2E',
+  onPrimaryContainer: '#F5F5F7',
+  secondary: '#98989D',
+  onSecondary: '#1C1C1E',
+  secondaryContainer: '#2C2C2E',
+  onSecondaryContainer: '#F5F5F7',
+  tertiary: '#8A8A8E',
+  onTertiary: '#1C1C1E',
+  tertiaryContainer: '#1C1C1E',
+  onTertiaryContainer: '#D1D1D6',
   error: '#F2B8B5',
   onError: '#601410',
   errorContainer: '#8C1D18',
   onErrorContainer: '#F9DEDC',
-  background: '#111A16',
-  onBackground: '#E6E8E2',
-  surface: '#111A16',
-  onSurface: '#E6E8E2',
-  surfaceVariant: '#26322C',
-  onSurfaceVariant: '#A9B3AB',
-  surfaceContainerLowest: '#0B120F',
-  surfaceContainerLow: '#18231E',
-  surfaceContainer: '#1D2923',
-  surfaceContainerHigh: '#243029',
-  surfaceContainerHighest: '#2C3931',
-  outline: '#6E776F',
-  outlineVariant: '#2C3931',
+  background: '#000000',
+  onBackground: '#F5F5F7',
+  surface: '#000000',
+  onSurface: '#F5F5F7',
+  surfaceVariant: '#1C1C1E',
+  onSurfaceVariant: '#98989D',
+  surfaceContainerLowest: '#000000',
+  surfaceContainerLow: '#0A0A0C',
+  surfaceContainer: '#161618',
+  surfaceContainerHigh: '#1C1C1E',
+  surfaceContainerHighest: '#2C2C2E',
+  outline: '#48484A',
+  outlineVariant: '#2C2C2E',
   shadow: '#000000',
   scrim: '#000000',
-  inverseSurface: '#E6E8E2',
-  inverseOnSurface: '#1E2A23',
-  inversePrimary: '#2B5C4B',
+  inverseSurface: '#F5F5F7',
+  inverseOnSurface: '#1C1C1E',
+  inversePrimary: '#1C1C1E',
 };
 
 export const brand = {
   gold: '#C9A259',
-  highlight: '#EFDFB4',
-  deep: '#1C3E33',
-  green: '#2B5C4B',
+  highlight: '#F0E6CE',
+  deep: '#1C1C1E',
+  green: '#3A3A3C',
   // Bundled Noto Serif CJK SC (registered by useReaderFonts). iOS does not
   // preinstall Songti SC, so naming it silently fell back to PingFang.
   serif: 'ReaderSerif',
-  onBrand: '#F6F3EA',
-  deepest: '#0F241C',
-  ink: '#1E2A23',
+  onBrand: '#F5F5F7',
+  deepest: '#000000',
+  ink: '#1C1C1E',
+  /** Restrained neutral accent: inks in light mode, paper white in dark. */
+  accent: '#1C1C1E',
+  onAccent: '#FFFFFF',
 } as const;
 
 // ---------------------------------------------------------------------------
