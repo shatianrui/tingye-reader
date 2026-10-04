@@ -66,6 +66,10 @@ test('streams audio chunks, keeps inline word timing, and rejects provider or tr
   await assert.rejects(minimaxAudio('你好','male-qn-qingse'),/参数无效/);
   next=()=>Response.json({base_resp:{status_code:2049,status_msg:'invalid api key'}});
   await assert.rejects(minimaxAudio('你好','male-qn-qingse'),/密钥无效.*invalid api key/);
+  next=()=>Response.json({base_resp:{status_code:1002,status_msg:'rpm limit'}});
+  await assert.rejects(minimaxAudio('你好','male-qn-qingse'),(e:Error&{status?:number;code?:string;retryAfter?:number})=>{assert.match(e.message,/频率超限.*rpm limit/);assert.equal(e.status,429);assert.equal(e.code,'TTS_RATE_LIMIT');assert.ok(e.retryAfter!>0&&e.retryAfter!<=120);return true;});
+  next=()=>sse([{data:{audio:'4944',status:1}},{base_resp:{status_code:1039,status_msg:'tpm limit'}}]);
+  await assert.rejects(minimaxAudio('你好','male-qn-qingse'),(e:Error&{status?:number})=>{assert.match(e.message,/每分钟文本量超限.*tpm limit/);assert.equal(e.status,429);return true;});
  }finally{globalThis.fetch=originalFetch;if(oldKey===undefined)delete process.env.MINIMAX_API_KEY;else process.env.MINIMAX_API_KEY=oldKey;}
 });
 

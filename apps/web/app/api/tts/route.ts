@@ -46,7 +46,17 @@ export async function POST(req:Request) {
       if(typeof body.voice!=='string'||!body.voice.trim()||body.voice.length>200)return Response.json({error:'请选择 MiniMax 音色。'},{status:400});
       // User-provided MiniMax credentials take priority over server env keys.
       const creds={key:userKey,groupId:typeof body.groupId==='string'&&body.groupId.trim()?body.groupId.trim():undefined,model:typeof body.model==='string'&&body.model.trim()?body.model.trim():undefined};
-      try{const timing=body.timing===true;const audio=(body.delivery==='url'?await minimaxAudioUrl(input,body.voice,timing,creds):undefined)??await minimaxAudio(input,body.voice,timing,creds);synthesized=true;return audio;}catch(error){return Response.json({error:error instanceof Error?error.message:'MiniMax 请求失败。'},{status:502});}
+      try{const timing=body.timing===true;const audio=(body.delivery==='url'?await minimaxAudioUrl(input,body.voice,timing,creds):undefined)??await minimaxAudio(input,body.voice,timing,creds);synthesized=true;return audio;}catch(error){
+        const e=error as Error & {status?:number;code?:string;retryAfter?:number};
+        // Provider per-minute limits are worth waiting out; the client retries
+        // this shape automatically, other provider failures stay terminal 502.
+        if(e?.status===429&&e.code==='TTS_RATE_LIMIT'){
+          const hint=Number(e.retryAfter);
+          const retryAfter=Number.isFinite(hint)&&hint>0?Math.min(120,Math.ceil(hint)):20;
+          return Response.json({error:e.message,code:'TTS_RATE_LIMIT',retryAfter},{status:429,headers:{'Retry-After':String(retryAfter),'Cache-Control':'no-store'}});
+        }
+        return Response.json({error:error instanceof Error?error.message:'MiniMax 请求失败。'},{status:502});
+      }
     }
     const glm=provider==="glm";
     // User-provided keys take priority over server env keys.

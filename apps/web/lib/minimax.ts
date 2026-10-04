@@ -4,6 +4,10 @@ const MAX_AUDIO_HEX=16*1024*1024;
 type MiniMaxResult={base_resp?:{status_code:number;status_msg?:string};data?:{audio?:string;status?:number;subtitle_file?:string;subtitle?:unknown;subtitles?:unknown};system_voice?:MiniMaxVoice[];voice_cloning?:MiniMaxVoice[];voice_generation?:MiniMaxVoice[]};
 function providerError(code:number|undefined,msg?:string){
   const detail=msg?`（${msg}）`:'';
+  // 1002 (RPM) and 1039 (TPM) are per-minute windows that reset on their own.
+  // Flag them so the route answers 429 and clients wait out the window instead
+  // of killing the whole playback session on a burst.
+  if(code===1002||code===1039)return Object.assign(new Error(code===1002?`MiniMax 请求频率超限（每分钟请求次数限制）${detail}，请稍后重试。`:`MiniMax 每分钟文本量超限${detail}，请缩短朗读段落或稍后重试。`),{status:429,code:'TTS_RATE_LIMIT',retryAfter:20});
   return new Error(code===1008?`MiniMax 语音额度不足，请检查账户余额${detail}`:code===1004?`MiniMax 请求参数无效${detail}，请检查密钥与 GroupId 是否匹配。`:code===2049?`MiniMax 密钥无效${detail}，请检查 API 密钥。`:code===2013?`MiniMax 参数异常${detail}，请检查模型与音色。`:`MiniMax 语音服务返回错误（${code??'未知'}${detail}），请检查密钥、GroupId、语音权限与额度。`);
 }
 function checked(result:MiniMaxResult){if(result.base_resp&&result.base_resp.status_code!==0)throw providerError(result.base_resp.status_code,result.base_resp.status_msg);return result;}
