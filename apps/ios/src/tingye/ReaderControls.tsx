@@ -6,8 +6,6 @@ import {styles} from './reader-styles';
 // Defined outside the reader: cursor updates must not remount settings controls.
 export const ReaderButton=({colors,label,onPress,primary=false,disabled=false}:{colors:ReadingTheme;label:string;onPress:()=>void;primary?:boolean;disabled?:boolean})=><Pressable accessibilityRole="button" accessibilityState={{disabled,selected:primary}} disabled={disabled} onPress={onPress} style={({pressed})=>[styles.button,{backgroundColor:primary?(colors.eink?colors.text:colors.accent):colors.surface,borderColor:colors.eink?colors.text:colors.line,borderWidth:colors.eink?1.5:1,borderRadius:colors.eink?4:22,opacity:(pressed||disabled)?0.6:1}]}><Text style={{color:primary?(colors.eink?colors.surface:colors.onAccent):colors.text,fontSize:15,fontWeight:'600'}}>{label}</Text></Pressable>;
 
-export const ReaderTool=({colors,symbol,label,onPress}:{colors:ReadingTheme;symbol:string;label:string;onPress:()=>void})=><Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={styles.readerTool}><Text style={{color:colors.text,fontSize:23}}>{symbol}</Text><Text style={{color:colors.muted,fontSize:10}}>{label}</Text></Pressable>;
-
 /**
  * ReaderErrorBanner — replaces the plain "player.error" Pressable that previously
  * showed only the raw server message. We classify the message so users get a
