@@ -11,13 +11,13 @@ const SERIF = brand.serif;
 
 type PlayerState = { active: boolean; paused: boolean; buffering: boolean };
 
-function Round({ colors, icon, label, onPress, size = 40 }: { colors: ReadingTheme; icon: IconName; label: string; onPress: () => void; size?: number }) {
-  const eink = colors.eink === true;
+// Bare icon buttons like the reference design (微信读书): no tile background,
+// just a 24pt glyph with a 44pt touch target.
+function BarButton({ colors, icon, label, onPress }: { colors: ReadingTheme; icon: IconName; label: string; onPress: () => void }) {
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} hitSlop={6}
-      style={({ pressed }) => [{ width: size, height: size, borderRadius: eink ? 4 : size / 2, alignItems: 'center', justifyContent: 'center',
-        backgroundColor: colors.surface, borderWidth: eink ? 1.5 : StyleSheet.hairlineWidth, borderColor: eink ? colors.text : colors.line }, pressed && { opacity: 0.6 }]}>
-      <Icon name={icon} size={20} color={colors.text} strokeWidth={eink ? 2 : 1.8} />
+    <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} hitSlop={8}
+      style={({ pressed }) => [s.barButton, pressed && { opacity: 0.5 }]}>
+      <Icon name={icon} size={24} color={colors.text} strokeWidth={colors.eink ? 2 : 1.7} />
     </Pressable>
   );
 }
@@ -29,26 +29,22 @@ export function ReaderTopBar({ colors, title, subtitle, left, right, onBack, onL
   const eink = colors.eink === true;
   return (
     <View testID="reader-top-toolbar" style={[s.top, { left, right, backgroundColor: colors.background, borderBottomColor: eink ? colors.text : colors.line, borderBottomWidth: eink ? 1.5 : StyleSheet.hairlineWidth }]}>
-      <Round colors={colors} icon="back" label="返回书架" onPress={onBack} />
+      <BarButton colors={colors} icon="back" label="返回书架" onPress={onBack} />
       <View style={{ flex: 1, alignItems: 'center', paddingHorizontal: 6 }}>
         <Text numberOfLines={1} style={{ fontFamily: SERIF, fontSize: 16, fontWeight: '700', color: colors.text }}>{title}</Text>
         {!!subtitle && <Text numberOfLines={1} style={{ fontSize: 11, color: colors.muted, marginTop: 2 }}>{subtitle}</Text>}
       </View>
-      <Round colors={colors} icon="headphones" label="听书播放器" onPress={onListen} />
-      <Round colors={colors} icon="more" label="更多设置" onPress={onMore} />
+      <BarButton colors={colors} icon="headphones" label="听书播放器" onPress={onListen} />
+      <BarButton colors={colors} icon="more" label="更多设置" onPress={onMore} />
     </View>
   );
 }
 
 function Tool({ colors, icon, label, active, onPress }: { colors: ReadingTheme; icon: IconName; label: string; active?: boolean; onPress: () => void }) {
-  const eink = colors.eink === true;
-  const bg = active ? colors.text : eink ? colors.surface : colors.highlight + '66';
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ selected: !!active }} onPress={onPress} style={({ pressed }) => [s.tool, pressed && { opacity: 0.6 }]}>
-      <View style={[s.toolTile, { backgroundColor: bg, borderRadius: eink ? 6 : 18, borderWidth: eink ? 1.5 : 0, borderColor: colors.text }]}>
-        <Icon name={icon} size={22} color={active ? colors.surface : colors.text} strokeWidth={eink ? 2 : 1.8} />
-      </View>
-      <Text numberOfLines={1} style={{ color: active ? colors.text : colors.muted, fontSize: 11, fontWeight: active ? '700' : '500' }}>{label}</Text>
+    <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ selected: !!active }} onPress={onPress} style={({ pressed }) => [s.tool, pressed && { opacity: 0.5 }]}>
+      <Icon name={icon} size={24} color={active ? colors.accent : colors.text} strokeWidth={colors.eink ? 2 : 1.7} />
+      <Text numberOfLines={1} style={{ color: active ? colors.accent : colors.muted, fontSize: 11, fontWeight: active ? '700' : '500' }}>{label}</Text>
     </Pressable>
   );
 }
@@ -93,51 +89,30 @@ function ChapterSlider({ colors, chapter, chapterCount, onSeek, onPrev, onNext }
   );
 }
 
+/** 可隐藏底栏：章节滑杆 + 五个纯图标工具（参考微信读书：目录/听书/日夜间/字体/设置）。 */
 export function ReaderBottomPanel(p: {
   colors: ReadingTheme; left: number; right: number; compact: boolean;
-  chapter: number; chapterCount: number; pageIndex: number; pageCount: number; rate: number; player: PlayerState;
-  onPrevChapter: () => void; onNextChapter: () => void; onSeekChapter: (chapter: number) => void; onPrevPage: () => void; onNextPage: () => void;
-  onPlay: () => void; onOpenPlayer: () => void; onRate: () => void;
-  onToc: () => void; onNight: () => void; onType: () => void; onEink: () => void; onMore: () => void;
+  chapter: number; chapterCount: number; player: PlayerState;
+  onPrevChapter: () => void; onNextChapter: () => void; onSeekChapter: (chapter: number) => void;
+  onToc: () => void; onListen: () => void; onNight: () => void; onType: () => void; onMore: () => void;
 }) {
   const { colors } = p;
   const eink = colors.eink === true;
-  const playing = p.player.active && !p.player.paused;
-  const cardText = eink ? colors.text : '#FFFFFF';
+  const listening = p.player.active;
   return (
-    <View testID="reader-bottom-toolbar" style={[s.bottom, { left: p.left, right: p.right, backgroundColor: colors.background, paddingHorizontal: p.compact ? 12 : 20,
-      borderTopColor: eink ? colors.text : colors.line, borderTopWidth: eink ? 1.5 : StyleSheet.hairlineWidth, borderTopLeftRadius: eink ? 0 : 28, borderTopRightRadius: eink ? 0 : 28 }]}>
+    <View testID="reader-bottom-toolbar" style={[s.bottom, { left: p.left, right: p.right, backgroundColor: colors.background, paddingHorizontal: p.compact ? 14 : 24,
+      borderTopColor: eink ? colors.text : colors.line, borderTopWidth: eink ? 1.5 : StyleSheet.hairlineWidth, borderTopLeftRadius: eink ? 0 : 24, borderTopRightRadius: eink ? 0 : 24 }]}>
       <View style={s.chapterRow}>
-        <Pressable accessibilityRole="button" accessibilityLabel="上一章" onPress={p.onPrevChapter} hitSlop={8}><Text style={{ color: colors.text, fontSize: 13, fontWeight: '600' }}>上一章</Text></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="上一章" onPress={p.onPrevChapter} hitSlop={8} style={s.chapterBtn}><Text style={{ color: colors.text, fontSize: 13, fontWeight: '600' }}>上一章</Text></Pressable>
         <ChapterSlider colors={colors} chapter={p.chapter} chapterCount={p.chapterCount} onSeek={p.onSeekChapter} onPrev={p.onPrevChapter} onNext={p.onNextChapter} />
-        <Pressable accessibilityRole="button" accessibilityLabel="下一章" onPress={p.onNextChapter} hitSlop={8}><Text style={{ color: colors.text, fontSize: 13, fontWeight: '600' }}>下一章</Text></Pressable>
-      </View>
-      <View style={s.pageRow}>
-        <Pressable accessibilityRole="button" accessibilityLabel="上一页" onPress={p.onPrevPage} hitSlop={8} style={s.pageBtn}><Icon name="back" size={16} color={colors.muted} /><Text style={{ color: colors.muted, fontSize: 12 }}>上一页</Text></Pressable>
-        <Text style={{ fontSize: 12, color: colors.muted }}>第 {p.chapter + 1}/{p.chapterCount} 章 · {p.pageIndex + 1}/{p.pageCount} 页</Text>
-        <Pressable accessibilityRole="button" accessibilityLabel="下一页" onPress={p.onNextPage} hitSlop={8} style={s.pageBtn}><Text style={{ color: colors.muted, fontSize: 12 }}>下一页</Text><Icon name="chev" size={16} color={colors.muted} /></Pressable>
-      </View>
-      {/* Sibling buttons, not nested: VoiceOver cannot focus a button inside another button. */}
-      <View style={[s.listenCard, { borderRadius: eink ? 6 : 22, backgroundColor: eink ? colors.surface : colors.accent, borderWidth: eink ? 1.5 : 0, borderColor: colors.text }]}>
-        <Pressable accessibilityRole="button" accessibilityLabel="打开听书播放器" onPress={p.onOpenPlayer} style={({ pressed }) => [s.listenOpen, pressed && { opacity: 0.7 }]}>
-          <Text style={{ color: cardText, fontSize: 15, fontWeight: '700', fontFamily: SERIF }}>{playing ? '正在朗读' : p.player.active ? '已暂停' : '从本句开始听'}</Text>
-          <Text style={{ color: cardText, opacity: 0.75, fontSize: 11, marginTop: 3 }}>{p.player.buffering && playing ? '正在准备声音…' : '整句高亮 · 自动翻页跟读'}</Text>
-        </Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel={`朗读语速 ${p.rate} 倍`} onPress={p.onRate} hitSlop={6}
-          style={[s.rate, { borderColor: eink ? colors.text : 'rgba(255,255,255,0.45)', borderRadius: eink ? 4 : 14 }]}>
-          <Text style={{ color: cardText, fontSize: 12, fontWeight: '700' }}>{p.rate}×</Text>
-        </Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel={playing ? '暂停朗读' : '开始朗读'} onPress={p.onPlay}
-          style={[s.cardPlay, { backgroundColor: eink ? colors.text : GOLD, borderRadius: eink ? 6 : 24 }]}>
-          {p.player.buffering && playing ? <ActivityIndicator color={eink ? colors.surface : brand.ink} /> : <Icon name={playing ? 'pause' : 'play'} size={22} color={eink ? colors.surface : brand.ink} />}
-        </Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="下一章" onPress={p.onNextChapter} hitSlop={8} style={s.chapterBtn}><Text style={{ color: colors.text, fontSize: 13, fontWeight: '600' }}>下一章</Text></Pressable>
       </View>
       <View style={s.tools}>
         <Tool colors={colors} icon="list" label="目录" onPress={p.onToc} />
+        <Tool colors={colors} icon="headphones" label={listening ? '朗读中' : '听书'} active={listening} onPress={p.onListen} />
         <Tool colors={colors} icon={colors.dark ? 'sun' : 'moon'} label={colors.dark ? '日间' : '夜间'} onPress={p.onNight} />
-        <Tool colors={colors} icon="type" label="字体排版" onPress={p.onType} />
-        <Tool colors={colors} icon="eink" label="电纸书" active={eink} onPress={p.onEink} />
-        <Tool colors={colors} icon="sliders" label="更多设置" onPress={p.onMore} />
+        <Tool colors={colors} icon="type" label="字体" onPress={p.onType} />
+        <Tool colors={colors} icon="sliders" label="设置" onPress={p.onMore} />
       </View>
     </View>
   );
@@ -258,23 +233,18 @@ export function SettingsCard({ colors, children }: { colors: ReadingTheme; child
 }
 
 const s = StyleSheet.create({
-  top: { position: 'absolute', top: 0, minHeight: 60, paddingHorizontal: 14, paddingVertical: 8, flexDirection: 'row', alignItems: 'center', gap: 8 },
-  bottom: { position: 'absolute', bottom: 0, paddingTop: 14, paddingBottom: 8, gap: 10 },
-  chapterRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  top: { position: 'absolute', top: 0, minHeight: 52, paddingHorizontal: 16, paddingVertical: 8, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  bottom: { position: 'absolute', bottom: 0, paddingTop: 12, paddingBottom: 6, gap: 8 },
+  barButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  chapterRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 2 },
+  chapterBtn: { minWidth: 44, alignItems: 'center' },
   slider: { flex: 1, height: 44, justifyContent: 'center' },
   sliderBubble: { position: 'absolute', bottom: 34, alignSelf: 'center', fontSize: 12, fontWeight: '600', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
   track: { height: 5, borderRadius: 3, justifyContent: 'center' },
   knob: { position: 'absolute', width: 16, height: 16, borderRadius: 8, marginLeft: -8, borderWidth: 2.5 },
   knobActive: { width: 22, height: 22, borderRadius: 11, marginLeft: -11 },
-  pageRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  pageBtn: { flexDirection: 'row', alignItems: 'center', gap: 2, minHeight: 28 },
-  listenCard: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingLeft: 16, paddingRight: 10, gap: 10, overflow: 'hidden' },
-  listenOpen: { flex: 1, alignSelf: 'stretch', justifyContent: 'center' },
-  rate: { borderWidth: 1, paddingHorizontal: 9, height: 28, alignItems: 'center', justifyContent: 'center' },
-  cardPlay: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
-  tools: { flexDirection: 'row', justifyContent: 'space-between', paddingTop: 2 },
-  tool: { flex: 1, alignItems: 'center', gap: 5 },
-  toolTile: { width: 52, height: 52, alignItems: 'center', justifyContent: 'center' },
+  tools: { flexDirection: 'row', justifyContent: 'space-around', paddingTop: 2 },
+  tool: { flex: 1, alignItems: 'center', gap: 4 },
   fab: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
   playerHead: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 10, gap: 12 },
   headBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },

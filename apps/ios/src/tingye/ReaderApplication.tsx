@@ -207,32 +207,39 @@ export default function ReaderApplication({services=readerServices}:{services?:R
       actions:id=>{const item=books.find(b=>b.id===id);if(item&&!item.sample)bookActions(item);},
       settings:openSettings,logout:()=>{void logout();},dismissNotice:()=>setNotice('')}}><RootNavigator/></LibraryUIContext.Provider></View>}
   {identity&&book&&<View style={[styles.reader,{backgroundColor:colors.surface}]} testID="immersive-reader">
-    <View style={[styles.readingHeading,{height:layout.desktop?52:layout.compactHeight?24:34,width:layout.contentWidth,alignSelf:'center',paddingHorizontal:0,flexDirection:'row',alignItems:'center',gap:8}]}>
-      {layout.desktop&&<ReaderButton colors={colors} label="书架" onPress={returnToShelf}/>}
+    {/* 桌面端保留常驻章节栏；移动端为全沉浸正文，顶栏/底栏均为可隐藏的悬浮菜单 */}
+    {layout.desktop&&<View style={[styles.readingHeading,{height:52,width:layout.contentWidth,alignSelf:'center',paddingHorizontal:0,flexDirection:'row',alignItems:'center',gap:8}]}>
+      <ReaderButton colors={colors} label="书架" onPress={returnToShelf}/>
       <Text numberOfLines={1} style={{flex:1,fontSize:13,color:colors.muted,fontWeight:'600',fontFamily:brand.serif,letterSpacing:.5}}>{currentChapter?.title}</Text>
-      {layout.desktop&&<><ReaderButton colors={colors} label="目录" onPress={()=>setPanel('toc')}/><ReaderButton colors={colors} label="阅读设置" onPress={openSettings}/></>}
-    </View>
+      <ReaderButton colors={colors} label="目录" onPress={()=>setPanel('toc')}/><ReaderButton colors={colors} label="阅读设置" onPress={openSettings}/>
+    </View>}
     {needsOriginalRepair(book)&&<Pressable accessibilityRole="button" onPress={()=>{void repairBook(book);}} style={{paddingHorizontal:18,paddingVertical:8,backgroundColor:colors.highlight}}><Text style={{color:colors.text,fontSize:13}}>这是旧版纯文字副本 · 点此重新导入原书图片、排版与封面</Text></Pressable>}
     <View accessible={false} testID="reading-body" style={[styles.readingBody,{width:layout.contentWidth,alignSelf:'center',marginHorizontal:0}]}
       onLayout={event=>{setPageHeight(event.nativeEvent.layout.height);setPageWidth(event.nativeEvent.layout.width);}}>
       <Pressable accessible={false} testID="reading-empty-space" onPress={toggleControls} style={StyleSheet.absoluteFill}/>
       {currentChapter&&pageWidth>0&&pageHeight>0&&<OriginalReader key={book.id+':'+chapter+':'+repairRevision} ref={originalReader} chapter={currentChapter} pdf={book.pdf} resources={book.resources} chapterIndex={chapter} config={readerConfig} initialOffset={activeRange?.start??0} onPage={paginationReady} onToggle={toggleControls} onPlay={play} onHideControls={()=>setControlsVisible(false)} onBoundary={crossChapter} onLink={followBookLink}/>}
-
+      {/* 沉浸态右下角的极小页码（pointerEvents 透传，不影响轻点显隐菜单） */}
+      {!layout.desktop&&<View pointerEvents="none" style={{position:'absolute',right:0,bottom:6}}>
+        <Text style={{fontSize:11,color:colors.muted,letterSpacing:.5}}>第 {chapter+1} / {book.chapters.length} 章 · {pageIndex+1} / {readerPage.count} 页</Text>
+      </View>}
     </View>
-    <View style={[styles.readingFooter,{height:layout.compactHeight?48:60,paddingHorizontal:layout.gutter,width:layout.contentWidth+2*layout.gutter,alignSelf:'center'}]}>
-      <Pressable accessibilityRole="button" accessibilityLabel={controlsVisible?'隐藏功能栏':'显示功能栏'} onPress={toggleControls} style={styles.readingProgress}><Text style={{fontSize:11,color:colors.muted}}>第 {chapter+1} / {book.chapters.length} 章 · {pageIndex+1} / {readerPage.count} 页</Text><Text numberOfLines={1} style={{fontSize:10,color:colors.muted,marginTop:4}}>{player.active?(player.timingNotice?'整句高亮 · 进度估算':'整句高亮 · 朗读同步'):layout.desktop?'正文内：← → / PgUp PgDn 翻页 · 空格 听/停 · M 菜单 · Esc 隐藏':'轻点正文显隐菜单 · 左右滑动翻页'}</Text></Pressable>
-      {layout.desktop&&<View style={{flexDirection:'row',gap:8,marginRight:12}}><ReaderButton colors={colors} label="上一页" onPress={()=>turn(-1)}/><ReaderButton colors={colors} label="下一页" onPress={()=>turn(1)}/></View>}
+    {/* 悬浮「听」圆钮：菜单隐藏时常驻右下，菜单展开时隐藏避免与底栏重叠 */}
+    {!layout.desktop&&!controlsVisible&&<View pointerEvents="box-none" style={{position:'absolute',right:16,bottom:40}}>
+      <ListenFab colors={colors} player={player} onPress={play} onLongPress={openPlayer}/>
+    </View>}
+    {layout.desktop&&<View style={[styles.readingFooter,{height:layout.compactHeight?48:60,paddingHorizontal:layout.gutter,width:layout.contentWidth+2*layout.gutter,alignSelf:'center'}]}>
+      <Pressable accessibilityRole="button" accessibilityLabel={controlsVisible?'隐藏功能栏':'显示功能栏'} onPress={toggleControls} style={styles.readingProgress}><Text style={{fontSize:11,color:colors.muted}}>第 {chapter+1} / {book.chapters.length} 章 · {pageIndex+1} / {readerPage.count} 页</Text><Text numberOfLines={1} style={{fontSize:10,color:colors.muted,marginTop:4}}>{player.active?(player.timingNotice?'整句高亮 · 进度估算':'整句高亮 · 朗读同步'):'正文内：← → / PgUp PgDn 翻页 · 空格 听/停 · M 菜单 · Esc 隐藏'}</Text></Pressable>
+      <View style={{flexDirection:'row',gap:8,marginRight:12}}><ReaderButton colors={colors} label="上一页" onPress={()=>turn(-1)}/><ReaderButton colors={colors} label="下一页" onPress={()=>turn(1)}/></View>
       {!controlsVisible&&<ListenFab colors={colors} player={player} onPress={play} onLongPress={openPlayer}/>}
-    </View>
+    </View>}
     {controlsVisible&&<>
       <ReaderTopBar colors={colors} title={book.title} subtitle={currentChapter?.title} left={(width-layout.controlsWidth)/2} right={(width-layout.controlsWidth)/2} onBack={returnToShelf} onListen={openPlayer} onMore={openSettings}/>
       <ReaderBottomPanel colors={colors} left={(width-layout.controlsWidth)/2} right={(width-layout.controlsWidth)/2} compact={width<360}
-        chapter={chapter} chapterCount={book.chapters.length} pageIndex={pageIndex} pageCount={readerPage.count} rate={prefs.voice.rate} player={player}
-        onPrevChapter={()=>crossChapter(-1)} onNextChapter={()=>crossChapter(1)} onSeekChapter={ci=>{if(ci!==chapter)jump(ci);}} onPrevPage={()=>turn(-1)} onNextPage={()=>turn(1)}
-        onPlay={play} onOpenPlayer={openPlayer} onRate={()=>{setDraftVoice({...prefs.voice});setPanel('rate');}}
-        onToc={()=>setPanel('toc')} onNight={()=>setPrefs(p=>({...p,theme:colors.dark?'paper':'ink'}))} onType={()=>setPanel('type')} onEink={toggleEink} onMore={openSettings}/>
+        chapter={chapter} chapterCount={book.chapters.length} player={player}
+        onPrevChapter={()=>crossChapter(-1)} onNextChapter={()=>crossChapter(1)} onSeekChapter={ci=>{if(ci!==chapter)jump(ci);}}
+        onToc={()=>setPanel('toc')} onListen={openPlayer} onNight={()=>setPrefs(p=>({...p,theme:colors.dark?'paper':'ink'}))} onType={()=>setPanel('type')} onMore={openSettings}/>
     </>}
-    {!!player.error&&<ReaderErrorBanner colors={colors} message={player.error} bottom={controlsVisible?300:66} onOpenSettings={openSettings} onRetry={()=>{void play();}}/>}
+    {!!player.error&&<ReaderErrorBanner colors={colors} message={player.error} bottom={controlsVisible?190:104} onOpenSettings={openSettings} onRetry={()=>{void play();}}/>}
     <PlayerSheet visible={playerOpen} colors={colors} title={book.title} author={book.author} chapterTitle={currentChapter?.title}
       sentences={playerSentences} position={player.active?position:Math.max(0,ranges.findIndex(r=>r.end>pageStart))}
       rate={prefs.voice.rate} voiceLabel={voiceLabel} player={player} onClose={()=>setPlayerOpen(false)}
