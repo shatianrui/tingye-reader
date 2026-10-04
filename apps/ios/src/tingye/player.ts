@@ -14,11 +14,13 @@ import type { VoiceConfig } from './voices';
 import {AudioCache,type AudioLease} from './audio-cache';
 import {SYNTH_TIMEOUT_MS,MAX_AHEAD_TRACKS,MIN_AHEAD_TRACKS,bufferedTargetSeconds,estimatedAudioSeconds,canStartAhead} from './audio-buffer-policy';
 
-type Position = ReturnType<typeof narrationGroups>[number] & { chapter: number; envelope?: SpeechEnvelope;marks?:SpeechMark[] };
+type Position = ReturnType<typeof narrationGroups>[number] & { chapter: number; envelope?: SpeechEnvelope;marks?:SpeechMark[];key?:string };
 type PlaybackLayout = { startOffset: number; paused?: boolean };
 export type ReadingCursor = { chapter: number; position: number; offset: number; start: number; end: number };
 type State = { active: boolean; paused: boolean; buffering: boolean; chapter: number; position: number; cursor?: ReadingCursor; error: string;timingNotice?:string };
 type PlayerStatus = Omit<State, 'cursor'>;
+// Tingye: extended via native patches in tools/patch-audio-events.cjs.
+type PlaylistStatus = import('expo-audio').AudioPlaylistStatus & { externalPause?: boolean; externalResume?: boolean; itemFailed?: boolean };
 // A 30 s MiniMax clip is ~1 MB of hex. Regex splitting plus parseInt allocates
 // one string per byte and stalls the JS thread that services the audio queue.
 export function hexBytes(hex:string){
@@ -78,6 +80,7 @@ class ReaderPlayer {
   private recentLatency = 12;
   private system = false;
   private speaking = false;
+  private externalPaused = false;
   private speechStopped: Promise<void> = Promise.resolve();
   private rate = 1;
   private state: State = { active: false, paused: false, buffering: false, chapter: 0, position: 0, error: '' };
@@ -111,6 +114,7 @@ class ReaderPlayer {
     if (this.system) this.stopSpeech();
     this.system=false;
     this.speaking = false;
+    this.externalPaused = false;
     this.leases.forEach(lease=>lease.release());this.leases=[];
     this.update({active:false,paused:false,buffering:false});
   }
@@ -132,7 +136,13 @@ class ReaderPlayer {
       }
       if(this.speaking)void (paused ? Speech.pause() : Speech.resume()).catch(()=>this.stop());
     }
-    else if (paused) this.playlist?.pause(); else this.playlist?.play();
+    else {
+      // Resuming can fail while an audio interruption still owns the session;
+      // stay paused instead of claiming playback that is not happening.
+      try { if (paused) this.playlist?.pause(); else this.playlist?.play(); }
+      catch { return; }
+    }
+    this.externalPaused=false;
     this.update({paused});
   }
   setRate(rate: number) {
@@ -240,6 +250,7 @@ class ReaderPlayer {
       };
       const synth = async (item: Position) => {
         const key=JSON.stringify(['word-timing-v1',book.id,config.provider,config.model,config.voice,speakableText(item.text)]);
+        item.key=key;
         const hit=this.cache.acquire(key);
         if(hit){
           this.leases.push(hit);item.envelope=hit.audio.envelope;item.marks=hit.audio.marks;
@@ -305,8 +316,24 @@ class ReaderPlayer {
           }
           playlist=createAudioPlaylist({sources:Array.from({length:contiguous},(_,i)=>({uri:prepared.get(i)!.audio.file.uri})),updateInterval:50});
           this.playlist=playlist;playlist.playbackRate=this.rate;queued=contiguous;
-          playlist.addListener('playlistStatusUpdate',status=>{
+          playlist.addListener('playlistStatusUpdate',(status: PlaylistStatus)=>{
             if(generation!==this.generation||!playlist)return;
+            // System audio events: interruptions, route changes, or failed items.
+            if(status.externalPause&&this.state.active&&!this.state.paused){
+              this.externalPaused=true;this.update({paused:true,buffering:false});
+              return;
+            }
+            if(status.externalResume&&this.state.active&&this.state.paused&&this.externalPaused){
+              this.externalPaused=false;this.update({paused:false});
+              return;
+            }
+            if(status.itemFailed){
+              // A corrupt clip poisons the replay cache; drop it so the next
+              // start re-synthesizes instead of failing on the same bytes.
+              const item=items[current];if(item?.key)this.cache.evict(item.key);
+              fatal(new Error('语音片段损坏，请重新播放。'));
+              return;
+            }
             const index=status.currentIndex;
             if(!Number.isInteger(index)||index<current||!items[index])return;
             if(index!==current&&items[index]){

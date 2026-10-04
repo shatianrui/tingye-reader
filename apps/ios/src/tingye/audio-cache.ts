@@ -32,6 +32,9 @@ export class AudioCache{
   const audio:CachedAudio={file,bytes:bytes.length,envelope,duration:envelope?.duration,pins:0};
   this.entries.set(key,audio);const lease=this.lease(audio);this.trim();return lease;
  }
+ // Force-drop poisoned bytes (e.g. a clip the native decoder rejected) even
+ // while a stale lease pins them; the lease release later is a no-op.
+ evict(key:string){const audio=this.entries.get(key);if(!audio)return;this.entries.delete(key);try{if(audio.file.exists)audio.file.delete();}catch{}}
  private trim(){
   let bytes=[...this.entries.values()].reduce((sum,a)=>sum+a.bytes,0);
   for(const [key,audio] of this.entries){

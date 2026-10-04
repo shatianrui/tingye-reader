@@ -1,5 +1,6 @@
 const fs = require('node:fs');
 require('./fix-audio-clock.cjs');
+require('./patch-audio-events.cjs');
 const path = require('node:path');
 const root = path.resolve(__dirname, '..');
 const pkgPath = path.join(root, 'package.json');
