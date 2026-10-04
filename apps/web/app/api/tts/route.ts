@@ -11,6 +11,15 @@ const endpoints: Record<string,string> = {
   glm: "https://open.bigmodel.cn/api/paas/v4/audio/speech",
   minimax: "https://api.minimaxi.com/v1/t2a_v2",
 };
+// GLM failures carry {error:{code,message}} JSON; surface a bounded excerpt so
+// users can see which field the provider rejected (key, model, voice…).
+async function upstreamDetail(upstream:Response){
+  try{
+    const body=JSON.parse((await upstream.text()).slice(0,4000)) as {error?:{message?:string};message?:string};
+    const message=typeof body?.error?.message==='string'?body.error.message:typeof body?.message==='string'?body.message:'';
+    return message?`服务商返回：${message.slice(0,200)}`:'';
+  }catch{return '';}
+}
 export async function GET(req:Request) {
   if (!await requestUser(req)) return Response.json({error:"请先登录。"},{status:401});
   return Response.json({limits:{dailyCharacters:dailyCharacterLimit(env.TTS_DAILY_CHARACTERS),requestsPerMinute:60,maxCharactersPerRequest:1000},minimax:{configured:!!env.MINIMAX_API_KEY,model:env.MINIMAX_MODEL||'speech-2.8-hd'},glm:{configured:!!env.GLM_TTS_API_KEY,model:env.GLM_TTS_MODEL||"glm-tts",voice:env.GLM_TTS_VOICE||"tongtong"}},{headers:{"Cache-Control":"no-store"}});
@@ -50,11 +59,15 @@ export async function POST(req:Request) {
     // The provider applies this preference only when the account allows it.
     const upstream=await fetch(endpoints[provider],{method:"POST",headers:{Authorization:`Bearer ${key}`,"Content-Type":"application/json"},body:JSON.stringify({model,voice:provider==="openai"&&voice.startsWith("voice_")?{id:voice}:voice,input,response_format:glm?"wav":"mp3",...(glm?{speed:1,volume:1,watermark_enabled:false}: {})}),signal:AbortSignal.timeout(45000),redirect:"manual"});
     if(!upstream.ok){
+      const detail=await upstreamDetail(upstream);
       const error=upstream.status===401?"语音密钥无效或已过期。":upstream.status===402?"语音服务余额不足，请充值后重试。":upstream.status===429?"语音服务额度不足或请求过快，请稍后重试。":upstream.status===403?"当前密钥没有此语音模型的使用权限。":`语音服务返回 ${upstream.status}，请检查模型权限和音色。`;
-      return Response.json({error,upstreamStatus:upstream.status},{status:502});
+      return Response.json({error:detail?`${error}（${detail}）`:error,upstreamStatus:upstream.status},{status:502});
     }
     const type=upstream.headers.get("Content-Type")||"";
-    if(type.includes("json")||type.startsWith("text/")) return Response.json({error:"语音服务未返回音频，请检查账户额度和音色。"},{status:502});
+    if(type.includes("json")||type.startsWith("text/")){
+      const detail=await upstreamDetail(upstream);
+      return Response.json({error:detail?`语音服务未返回音频。（${detail}）`:"语音服务未返回音频，请检查账户额度和音色。"},{status:502});
+    }
     const audio=await readGlmWav(upstream);
     synthesized=true;
     return new Response(new Uint8Array(audio),{headers:{"Content-Type":"audio/wav","Cache-Control":"no-store","X-Content-Type-Options":"nosniff"}});
