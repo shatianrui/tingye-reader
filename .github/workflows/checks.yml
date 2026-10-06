@@ -32,3 +32,7 @@ jobs:
         run: npm run build
       - if: matrix.app != 'web'
         run: npm run build:reader
+      # The WebView reader runtime is generated source; editing its inputs without
+      # regenerating leaves Metro/dev builds on a stale copy.
+      - if: matrix.app == 'ios'
+        run: git diff --exit-code -- src/tingye/reader-script.ts src/tingye/pdf-script.ts

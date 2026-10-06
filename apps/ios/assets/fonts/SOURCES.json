@@ -3,5 +3,7 @@
   "NotoSerifCJKsc-Regular.otf#subset": "tools/subset-reader-font.py: GB2312 + Big5 level 1 hanzi, no Hangul",
   "Noto-OFL.txt": "https://raw.githubusercontent.com/notofonts/noto-cjk/main/Serif/LICENSE",
   "LXGWWenKaiLite-Regular.ttf": "https://github.com/lxgw/LxgwWenKai-Lite/releases/latest/download/LXGWWenKaiLite-Regular.ttf",
-  "LXGW-OFL.txt": "https://raw.githubusercontent.com/lxgw/LxgwWenKai-Lite/main/OFL.txt"
+  "LXGW-OFL.txt": "https://raw.githubusercontent.com/lxgw/LxgwWenKai-Lite/main/OFL.txt",
+  "MaShanZheng-Regular.ttf": "https://raw.githubusercontent.com/google/fonts/main/ofl/mashanzheng/MaShanZheng-Regular.ttf",
+  "MaShanZheng-OFL.txt": "https://raw.githubusercontent.com/google/fonts/main/ofl/mashanzheng/OFL.txt"
 }

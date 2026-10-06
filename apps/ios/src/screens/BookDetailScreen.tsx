@@ -19,6 +19,7 @@ import BookCover from '../components/BookCover';
 import Icon, { type IconName } from '../components/Icon';
 import { useAppTheme } from '../theme/useAppTheme';
 import { spacing as spacingTokens, brand } from '../theme/tokens';
+import { InkMountains } from '../components/Ink';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'BookDetail'>;
 
@@ -132,20 +133,22 @@ export default function BookDetailScreen({ route, navigation }: Props) {
   const selectionBarHeight = insets.top + 116;
 
   const hero = book ? (
-    <View style={[styles.hero, { backgroundColor: theme.colors.inverseSurface }]}>
+    <View style={[styles.hero, { backgroundColor: theme.colors.surfaceContainer, borderBottomColor: theme.colors.outline }]}>
+      <View style={[styles.heroMoon, { backgroundColor: theme.colors.outlineVariant }]} />
+      <InkMountains width="100%" height={150} color={theme.colors.onSurface} style={styles.heroWash} />
       <View style={styles.heroInner}>
         <View style={styles.heroTop}>
           <View style={styles.heroCover}><BookCover book={book} width={104} height={146} /></View>
           <View style={styles.heroInfo}>
-            <Text numberOfLines={1} style={[styles.heroOverline, { color: brand.gold }]}>{book.category}</Text>
-            <Text style={[styles.heroTitle, { color: theme.colors.inverseOnSurface }]} numberOfLines={3}>{book.title}</Text>
-            {!!book.author && <Text style={[styles.heroAuthor, { color: theme.colors.inverseOnSurface }]} numberOfLines={1}>{book.author}</Text>}
+            <Text numberOfLines={1} style={[styles.heroOverline, { color: theme.colors.tertiary }]}>{book.category}</Text>
+            <Text style={[styles.heroTitle, { color: theme.colors.onSurface }]} numberOfLines={3}>{book.title}</Text>
+            {!!book.author && <Text style={[styles.heroAuthor, { color: theme.colors.onSurfaceVariant }]} numberOfLines={1}>{book.author}</Text>}
             <View style={styles.heroStats}>
-              <HeroStat label="章节" value={String(totalChapters || '—')} ink={theme.colors.inverseOnSurface} />
+              <HeroStat label="章节" value={String(totalChapters || '—')} ink={theme.colors.onSurface} />
               <HeroDivider />
-              <HeroStat label="当前" value={`第 ${(nativeBook?.chapter || 0) + 1} 章`} ink={theme.colors.inverseOnSurface} />
+              <HeroStat label="当前" value={`第 ${(nativeBook?.chapter || 0) + 1} 章`} ink={theme.colors.onSurface} />
               <HeroDivider />
-              <HeroStat label="藏书" value={nativeBook?.sample ? '示例' : '已导入'} ink={theme.colors.inverseOnSurface} />
+              <HeroStat label="藏书" value={nativeBook?.sample ? '示例' : '已导入'} ink={theme.colors.onSurface} />
             </View>
           </View>
         </View>
@@ -153,13 +156,13 @@ export default function BookDetailScreen({ route, navigation }: Props) {
         {percent > 0 ? (
           <View style={styles.heroProgress}>
             <View style={styles.heroProgressRow}>
-              <Text style={[styles.heroProgressTitle, { color: theme.colors.inverseOnSurface }]}>已读 {Math.round(percent * 100)}%</Text>
-              <Text style={[styles.heroProgressMeta, { color: theme.colors.inverseOnSurface }]}>
+              <Text style={[styles.heroProgressTitle, { color: theme.colors.onSurface }]}>已读 {Math.round(percent * 100)}%</Text>
+              <Text style={[styles.heroProgressMeta, { color: theme.colors.onSurfaceVariant }]}>
                 第 {Math.min(totalChapters, (nativeBook?.chapter || 0) + 1)} / {totalChapters} 章
               </Text>
             </View>
-            <View style={[styles.heroTrack, { backgroundColor: theme.scheme === 'dark' ? 'rgba(28,28,30,0.16)' : 'rgba(255,255,255,0.18)' }]}>
-              <View style={{ width: `${Math.round(percent * 100)}%`, height: '100%', borderRadius: 2, backgroundColor: brand.gold }} />
+            <View style={[styles.heroTrack, { backgroundColor: theme.colors.outline }]}>
+              <View style={{ width: `${Math.round(percent * 100)}%`, height: 3, marginTop: -1, backgroundColor: theme.colors.onSurface }} />
             </View>
           </View>
         ) : null}
@@ -169,19 +172,19 @@ export default function BookDetailScreen({ route, navigation }: Props) {
             accessibilityRole="button"
             accessibilityLabel={percent > 0 ? `继续阅读 ${book.title}` : `开始阅读 ${book.title}`}
             onPress={() => openReader(undefined)}
-            style={({ pressed }) => [styles.ctaRead, { backgroundColor: theme.colors.inverseOnSurface }, pressed && { opacity: 0.88 }]}
+            style={({ pressed }) => [styles.ctaRead, { backgroundColor: theme.colors.primary }, pressed && { opacity: 0.88 }]}
           >
-            <Icon name="play" size={16} color={theme.colors.inverseSurface} />
-            <Text style={[styles.ctaReadText, { color: theme.colors.inverseSurface }]}>{percent > 0 ? '继续阅读' : '开始阅读'}</Text>
+            <Text style={[styles.ctaReadText, { color: theme.colors.onPrimary }]}>{percent > 0 ? '继续阅读' : '开始阅读'}</Text>
           </Pressable>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={`听书 ${book.title}`}
             onPress={() => navigation.navigate('Reader', { bookId: book.id, listen: true })}
-            style={({ pressed }) => [styles.ctaListen, { borderColor: theme.scheme === 'dark' ? 'rgba(28,28,30,0.35)' : 'rgba(255,255,255,0.5)' }, pressed && { opacity: 0.7 }]}
+            style={({ pressed }) => [styles.ctaListen, { backgroundColor: theme.colors.tertiary }, pressed && { opacity: 0.8 }]}
           >
-            <Icon name="headphones" size={16} color={theme.colors.inverseOnSurface} />
-            <Text style={[styles.ctaListenText, { color: theme.colors.inverseOnSurface }]}>听书</Text>
+            <View pointerEvents="none" style={[styles.ctaListenFrame, { borderColor: theme.colors.onTertiary }]} />
+            <Text style={[styles.ctaListenSeal, { color: theme.colors.onTertiary }]}>听</Text>
+            <Text style={[styles.ctaListenText, { color: theme.colors.onTertiary }]}>书</Text>
           </Pressable>
         </View>
       </View>
@@ -279,7 +282,7 @@ export default function BookDetailScreen({ route, navigation }: Props) {
                           <View
                             style={[
                               styles.chapterIndexBubble,
-                              { backgroundColor: isRead ? theme.colors.primaryContainer : theme.colors.surfaceContainerHighest },
+                              { borderColor: isRead ? theme.colors.outlineVariant : theme.colors.outline, backgroundColor: isRead ? theme.colors.surfaceContainerHigh : 'transparent' },
                             ]}
                           >
                             {isRead ? (
@@ -368,15 +371,15 @@ export default function BookDetailScreen({ route, navigation }: Props) {
   );
 }
 
-/** Frosted circular buttons floating over the brand hero. */
+/** Ink-outlined circular buttons floating over the paper hero. */
 function FloatingNav({ insetTop, onBack, onVoice }: { insetTop: number; onBack: () => void; onVoice?: () => void }) {
   const theme = useAppTheme();
   return (
     <View style={[styles.floatingNav, { paddingTop: insetTop + 8 }]} pointerEvents="box-none">
       <View style={styles.floatingRow}>
-        <NavCircle icon="back" label="返回书架" onPress={onBack} fg={theme.colors.inverseOnSurface} />
+        <NavCircle icon="back" label="返回书架" onPress={onBack} fg={theme.colors.onSurface} />
         <View style={{ flex: 1 }} />
-        {onVoice ? <NavCircle icon="mic" label="语音设置" onPress={onVoice} fg={theme.colors.inverseOnSurface} /> : null}
+        {onVoice ? <NavCircle icon="mic" label="语音设置" onPress={onVoice} fg={theme.colors.onSurface} /> : null}
       </View>
     </View>
   );
@@ -389,7 +392,7 @@ function NavCircle({ icon, label, onPress, fg }: { icon: IconName; label: string
       accessibilityLabel={label}
       onPress={onPress}
       hitSlop={6}
-      style={({ pressed }) => [styles.navCircle, pressed && { opacity: 0.75 }]}
+      style={({ pressed }) => [styles.navCircle, { borderColor: fg }, pressed && { opacity: 0.6 }]}
     >
       <Icon name={icon} size={20} color={fg} />
     </Pressable>
@@ -504,14 +507,16 @@ const styles = StyleSheet.create({
   missing: { flex: 1, minHeight: 240, alignItems: 'center', justifyContent: 'center' },
 
   // ----- Flat ink hero -----
-  hero: { overflow: 'hidden', borderBottomLeftRadius: 24, borderBottomRightRadius: 24 },
+  hero: { overflow: 'hidden', borderBottomWidth: StyleSheet.hairlineWidth },
+  heroMoon: { position: 'absolute', right: 72, top: 14, width: 64, height: 64, borderRadius: 32, opacity: 0.55 },
+  heroWash: { position: 'absolute', left: 0, right: 0, bottom: 0 },
   heroInner: { width: '100%', maxWidth: CONTENT_MAX_WIDTH, alignSelf: 'center', paddingHorizontal: spacingTokens.xl, paddingTop: 64, paddingBottom: spacingTokens.xl },
   heroTop: { flexDirection: 'row' },
-  heroCover: {},
+  heroCover: { shadowColor: '#000', shadowOpacity: 0.26, shadowRadius: 12, shadowOffset: { width: 0, height: 8 } },
   heroInfo: { flex: 1, marginLeft: spacingTokens.xl, justifyContent: 'flex-end' },
   heroOverline: { fontSize: 12, fontWeight: '700', letterSpacing: 2 },
-  heroTitle: { fontFamily: brand.serif, fontSize: 22, fontWeight: '700', lineHeight: 30, marginTop: 6 },
-  heroAuthor: { fontSize: 13, marginTop: spacingTokens.xs, opacity: 0.7 },
+  heroTitle: { fontFamily: brand.brush, fontSize: 32, lineHeight: 40, marginTop: 2 },
+  heroAuthor: { fontSize: 13, letterSpacing: 2 },
   heroStats: { flexDirection: 'row', alignItems: 'center', marginTop: spacingTokens.lg },
   heroStat: { flex: 1 },
   heroStatValue: { fontSize: 14, fontWeight: '700' },
@@ -521,12 +526,14 @@ const styles = StyleSheet.create({
   heroProgressRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacingTokens.sm },
   heroProgressTitle: { fontSize: 13, fontWeight: '700' },
   heroProgressMeta: { fontSize: 11, opacity: 0.65 },
-  heroTrack: { height: 4, borderRadius: 2, overflow: 'hidden' },
+  heroTrack: { height: StyleSheet.hairlineWidth },
   ctaRow: { flexDirection: 'row', gap: spacingTokens.md, marginTop: spacingTokens.xl },
-  ctaRead: { flex: 1.4, height: 48, borderRadius: 24, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
-  ctaReadText: { fontSize: 15, fontWeight: '700' },
-  ctaListen: { flex: 1, height: 48, borderRadius: 24, borderWidth: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
-  ctaListenText: { fontSize: 15, fontWeight: '700' },
+  ctaRead: { flex: 1.4, height: 50, borderRadius: 2, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
+  ctaReadText: { fontSize: 16, letterSpacing: 4 },
+  ctaListen: { flex: 1, height: 50, borderRadius: 4, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 2 },
+  ctaListenFrame: { position: 'absolute', left: 3, top: 3, right: 3, bottom: 3, borderWidth: 1, opacity: 0.5, borderRadius: 1 },
+  ctaListenSeal: { fontFamily: brand.brush, fontSize: 26, lineHeight: 32 },
+  ctaListenText: { fontSize: 16, letterSpacing: 2 },
 
   // ----- Floating nav -----
   floatingNav: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 20, paddingHorizontal: spacingTokens.lg },
@@ -537,24 +544,22 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.14)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.28)',
   },
 
   // ----- Body -----
   body: { width: '100%', maxWidth: CONTENT_MAX_WIDTH, alignSelf: 'center', paddingHorizontal: spacingTokens.xl },
-  sectionTitle: { fontFamily: brand.serif, fontSize: 19, fontWeight: '700', marginTop: spacingTokens.xl, marginBottom: spacingTokens.sm },
-  card: { borderRadius: 22, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
+  sectionTitle: { fontFamily: brand.brush, fontSize: 24, lineHeight: 30, marginTop: spacingTokens.xl, marginBottom: spacingTokens.sm },
+  card: { borderRadius: 2, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
   intro: { fontSize: 14, lineHeight: 23, padding: spacingTokens.lg },
   sectionHeaderRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginTop: spacingTokens.xl, marginBottom: spacingTokens.sm },
   chapterReadCount: { fontSize: 12, fontWeight: '500' },
   sectionHint: { fontSize: 11, marginTop: -spacingTokens.xs, marginBottom: spacingTokens.sm },
   error: { paddingHorizontal: spacingTokens.xs },
   chapterRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacingTokens.lg, paddingVertical: spacingTokens.md },
-  chapterIndexBubble: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginRight: spacingTokens.md },
+  chapterIndexBubble: { width: 28, height: 28, borderRadius: 2, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'center', marginRight: spacingTokens.md },
   chapterIndexText: { fontSize: 11, fontWeight: '700', letterSpacing: 0.4 },
-  checkbox: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, alignItems: 'center', justifyContent: 'center', marginRight: spacingTokens.md },
+  checkbox: { width: 24, height: 24, borderRadius: 2, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center', marginRight: spacingTokens.md },
   chapterTitle: { flex: 1, fontSize: 14, marginRight: spacingTokens.sm },
 
   // ----- Bottom bar -----
@@ -569,7 +574,7 @@ const styles = StyleSheet.create({
   },
   managePill: {
     height: 48,
-    borderRadius: 24,
+    borderRadius: 2,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -600,7 +605,7 @@ const selectionStyles = StyleSheet.create({
   pill: {
     flex: 1,
     height: 44,
-    borderRadius: 22,
+    borderRadius: 2,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',

@@ -1,6 +1,6 @@
 # 听页 Tingye Reader
 
-网站、Android 与 iOS 的维护仓库。生产网站 https://copilotcli.top 。移动端使用 React Native / Expo 原生阅读界面，共用网站的账号、书籍备份、阅读进度和云端语音接口。
+网站、Android、iOS 与 Windows 的维护仓库。生产网站 https://copilotcli.top 。移动端使用 React Native / Expo 原生阅读界面，共用网站的账号、书籍备份、阅读进度和云端语音接口。
 
 ## 工程结构
 
@@ -9,6 +9,7 @@
 | `apps/web` | Next.js 网站、API、数据库迁移 | 2026-09-20 生产站对应源码 |
 | `apps/android` | React Native、原生 Android、折叠屏和 DeX | 1.6.4 / 16005 |
 | `apps/ios` | React Native、iOS 文档及语音模块、跨端进度修复 | 1.7.7 / 34 |
+| `apps/desktop` | Windows 桌面版：Electron 运行 `apps/ios` 的界面与阅读引擎（react-native-web） | 1.10.0 |
 | `docs` | 构建、发布及维护说明 | — |
 
 各工程保留独立 package-lock.json，在对应目录运行 npm。两端不是完全相同的代码版本：iOS 包含后续同步与高亮修复，维护时应逐项移植并测试，不能直接覆盖整个目录。

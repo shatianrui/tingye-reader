@@ -9,7 +9,7 @@ export function presentLibrary(books: NativeBook[]) {
   return [...books].sort((a,b)=>Number((b as Entry).updatedAt||0)-Number((a as Entry).updatedAt||0)).map(b=>({
     id:b.id,title:b.title,author:b.author,category:b.sample?'示例节选':b.format,
     intro:b.sample?'内置示例，可直接阅读和听书。':`${b.format} · ${(b as Entry).local?'已保存到手机，可离线阅读。':(b as Entry).backedUp?'云端备份，打开后下载到手机。':'正文在导入设备，可通过云端备份同步。'}`,
-    format:'txt' as const,coverColors:(b.color==='blue'?['#486477','#263e50']:b.color==='ochre'?['#A38353','#70512b']:['#375E4B','#1e3c2e']) as [string,string],
+    format:'txt' as const,coverColors:(b.color==='blue'?['#3B4350','#252B34']:b.color==='ochre'?['#7D5A3C','#5A3F28']:['#33312D','#1F1E1B']) as [string,string],
     coverUri:(b as Entry).coverUri,rating:0,readers:0,isNew:!b.position&&!b.chapter,
   }));
 }

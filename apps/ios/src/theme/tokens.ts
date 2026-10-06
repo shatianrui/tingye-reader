@@ -1,5 +1,5 @@
 /**
- * Design tokens for the 听页 app chrome (2.0 极简现代 redesign).
+ * Design tokens for the 听页 app chrome (水墨 redesign).
  *
  * The reading surface keeps its own palette (`src/tingye/themes.ts`) because
  * reading mode must not depend on the host app's chrome theme.
@@ -7,10 +7,10 @@
  * This file is the single source of truth for the rest of the app:
  * navigation, shelves, lists, detail pages, search, profile and account.
  *
- * Color palette: neutral monochrome — near-black ink on white, layered gray
- * surfaces, hairline dividers. No shadows, no gradients; depth comes from
- * tonal layering only. The brand gold (#C9A259) survives only in `brand.*`
- * as a sparing accent for the player highlight.
+ * Color palette: Chinese ink wash. Warm rice paper (宣纸) grounds, ink tones
+ * from 浓墨 to 淡墨 for text and rules, and a single cinnabar (朱砂) accent kept
+ * for seals and the listening state. Corners stay nearly square; separation
+ * comes from hairlines and double rules rather than shadows.
  */
 
 import { Platform } from 'react-native';
@@ -72,93 +72,102 @@ export interface AppColors {
 }
 
 export const lightColors: AppColors = {
-  primary: '#1C1C1E',
-  onPrimary: '#FFFFFF',
-  primaryContainer: '#E8E8ED',
-  onPrimaryContainer: '#1C1C1E',
-  secondary: '#636366',
-  onSecondary: '#FFFFFF',
-  secondaryContainer: '#E8E8ED',
-  onSecondaryContainer: '#1C1C1E',
-  tertiary: '#8A8A8E',
-  onTertiary: '#FFFFFF',
-  tertiaryContainer: '#F2F2F7',
-  onTertiaryContainer: '#3A3A3C',
-  error: '#B3261E',
+  primary: '#1A1A18',
+  onPrimary: '#F4EFE4',
+  primaryContainer: '#E6DECD',
+  onPrimaryContainer: '#1A1A18',
+  secondary: '#4A4843',
+  onSecondary: '#F4EFE4',
+  secondaryContainer: '#EAE3D3',
+  onSecondaryContainer: '#1A1A18',
+  tertiary: '#A83226',
+  onTertiary: '#F6F0E4',
+  tertiaryContainer: '#F1DCD5',
+  onTertiaryContainer: '#5C1A12',
+  error: '#9B2C2C',
   onError: '#FFFFFF',
-  errorContainer: '#F9DEDC',
-  onErrorContainer: '#410E0B',
-  background: '#FFFFFF',
-  onBackground: '#1C1C1E',
-  surface: '#FFFFFF',
-  onSurface: '#1C1C1E',
-  surfaceVariant: '#F2F2F7',
-  onSurfaceVariant: '#636366',
-  surfaceContainerLowest: '#FFFFFF',
-  surfaceContainerLow: '#FAFAFC',
-  surfaceContainer: '#F5F5F7',
-  surfaceContainerHigh: '#ECECF0',
-  surfaceContainerHighest: '#E5E5EA',
-  outline: '#AEAEB2',
-  outlineVariant: '#E5E5EA',
-  shadow: '#000000',
+  errorContainer: '#F4D8D2',
+  onErrorContainer: '#4A0E08',
+  background: '#F4EFE4',
+  onBackground: '#1A1A18',
+  surface: '#F4EFE4',
+  onSurface: '#1A1A18',
+  surfaceVariant: '#EAE3D3',
+  onSurfaceVariant: '#6B6862',
+  surfaceContainerLowest: '#FBF9F4',
+  surfaceContainerLow: '#FAF7F0',
+  surfaceContainer: '#F1EBDF',
+  surfaceContainerHigh: '#EAE3D3',
+  surfaceContainerHighest: '#E3DBC9',
+  outline: '#A9A291',
+  outlineVariant: '#D9D1BF',
+  shadow: '#1A1A18',
   scrim: '#000000',
-  inverseSurface: '#1C1C1E',
-  inverseOnSurface: '#F5F5F7',
-  inversePrimary: '#F5F5F7',
+  inverseSurface: '#1F1E1B',
+  inverseOnSurface: '#F4EFE4',
+  inversePrimary: '#F4EFE4',
 };
 
 export const darkColors: AppColors = {
-  primary: '#F5F5F7',
-  onPrimary: '#1C1C1E',
-  primaryContainer: '#2C2C2E',
-  onPrimaryContainer: '#F5F5F7',
-  secondary: '#98989D',
-  onSecondary: '#1C1C1E',
-  secondaryContainer: '#2C2C2E',
-  onSecondaryContainer: '#F5F5F7',
-  tertiary: '#8A8A8E',
-  onTertiary: '#1C1C1E',
-  tertiaryContainer: '#1C1C1E',
-  onTertiaryContainer: '#D1D1D6',
+  primary: '#EDE6D6',
+  onPrimary: '#15140F',
+  primaryContainer: '#2E2C27',
+  onPrimaryContainer: '#EDE6D6',
+  secondary: '#A39D90',
+  onSecondary: '#15140F',
+  secondaryContainer: '#2A2823',
+  onSecondaryContainer: '#EDE6D6',
+  tertiary: '#D9705F',
+  onTertiary: '#1C1B17',
+  tertiaryContainer: '#4A2620',
+  onTertiaryContainer: '#F4D8D2',
   error: '#F2B8B5',
   onError: '#601410',
   errorContainer: '#8C1D18',
   onErrorContainer: '#F9DEDC',
-  background: '#000000',
-  onBackground: '#F5F5F7',
-  surface: '#000000',
-  onSurface: '#F5F5F7',
-  surfaceVariant: '#1C1C1E',
-  onSurfaceVariant: '#98989D',
-  surfaceContainerLowest: '#000000',
-  surfaceContainerLow: '#0A0A0C',
-  surfaceContainer: '#161618',
-  surfaceContainerHigh: '#1C1C1E',
-  surfaceContainerHighest: '#2C2C2E',
-  outline: '#48484A',
-  outlineVariant: '#2C2C2E',
+  background: '#15140F',
+  onBackground: '#EDE6D6',
+  surface: '#15140F',
+  onSurface: '#EDE6D6',
+  surfaceVariant: '#22211C',
+  onSurfaceVariant: '#A39D90',
+  surfaceContainerLowest: '#100F0B',
+  surfaceContainerLow: '#1A1914',
+  surfaceContainer: '#1F1E19',
+  surfaceContainerHigh: '#26241F',
+  surfaceContainerHighest: '#2E2C27',
+  outline: '#5C584F',
+  outlineVariant: '#33312B',
   shadow: '#000000',
   scrim: '#000000',
-  inverseSurface: '#F5F5F7',
-  inverseOnSurface: '#1C1C1E',
-  inversePrimary: '#1C1C1E',
+  inverseSurface: '#EDE6D6',
+  inverseOnSurface: '#1A1A18',
+  inversePrimary: '#1A1A18',
 };
 
 export const brand = {
-  gold: '#C9A259',
-  highlight: '#F0E6CE',
-  deep: '#1C1C1E',
-  green: '#3A3A3C',
+  /** 朱砂: seals, the listening state and the one active marker per view. */
+  cinnabar: '#A83226',
+  /** Cinnabar for small text and marks on night-ink grounds (5:1 on #15140F). */
+  cinnabarBright: '#D9705F',
+  onCinnabar: '#F6F0E4',
+  paper: '#F4EFE4',
+  /** Sentence highlight wash (淡赭) on paper. */
+  highlight: '#E7DCC4',
+  /** Night ink ground for the full-screen player. */
+  deep: '#15140F',
+  onBrand: '#EDE6D6',
+  deepest: '#000000',
+  ink: '#1A1A18',
+  /** Mid ink for mountains and washes; use with opacity. */
+  wash: '#1A1A18',
   // Bundled Noto Serif CJK SC (registered by useReaderFonts). iOS does not
   // preinstall Songti SC, so naming it silently fell back to PingFang.
   serif: 'ReaderSerif',
-  onBrand: '#F5F5F7',
-  deepest: '#000000',
-  ink: '#1C1C1E',
-  /** Restrained neutral accent: inks in light mode, paper white in dark. */
-  accent: '#1C1C1E',
-  onAccent: '#FFFFFF',
+  /** Bundled 马善政 brush face for display titles; regular weight only. */
+  brush: 'InkBrush',
+  accent: '#1A1A18',
+  onAccent: '#F4EFE4',
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -207,11 +216,11 @@ export type TypographyToken = keyof typeof typography;
 
 export const shape = {
   none: 0,
-  extraSmall: 4,
-  small: 8,
-  medium: 12,
-  large: 16,
-  extraLarge: 28,
+  extraSmall: 2,
+  small: 4,
+  medium: 6,
+  large: 8,
+  extraLarge: 12,
   full: 9999,
 } as const;
 

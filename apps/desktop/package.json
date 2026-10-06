@@ -1,0 +1,72 @@
+{
+  "name": "tingye-desktop",
+  "productName": "听页",
+  "version": "1.10.0",
+  "description": "听页 Windows 桌面版：复用 iOS 界面与阅读引擎",
+  "author": "shatianrui",
+  "license": "UNLICENSED",
+  "repository": "github:shatianrui/tingye-reader",
+  "private": true,
+  "main": "electron/main.cjs",
+  "scripts": {
+    "build": "node tools/build.mjs",
+    "build:fixture": "node tools/build.mjs --fixture",
+    "start": "node tools/build.mjs && electron .",
+    "test": "node tests/shims.cjs",
+    "test:e2e": "node tools/build.mjs --fixture && node tests/e2e.cjs",
+    "dist:win": "node tools/build.mjs && electron-builder --win --x64 --publish never"
+  },
+  "build": {
+    "appId": "com.shatianrui.tingye.desktop",
+    "productName": "听页",
+    "executableName": "Tingye",
+    "copyright": "听页 Tingye Reader",
+    "directories": {
+      "output": "release",
+      "buildResources": "resources"
+    },
+    "files": [
+      "package.json",
+      "electron/**",
+      "dist/renderer/**",
+      "!dist/renderer/fixture*"
+    ],
+    "asar": true,
+    "win": {
+      "icon": "resources/icon.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "shortcutName": "听页",
+      "uninstallDisplayName": "听页",
+      "artifactName": "Tingye-Setup-${version}-x64.${ext}"
+    },
+    "portable": {
+      "artifactName": "Tingye-${version}-x64-portable.${ext}"
+    }
+  },
+  "devDependencies": {
+    "electron": "44.5.1",
+    "electron-builder": "26.15.3",
+    "esbuild": "0.28.2",
+    "playwright": "1.63.0",
+    "react-dom": "19.2.3",
+    "react-native-web": "0.21.2"
+  }
+}

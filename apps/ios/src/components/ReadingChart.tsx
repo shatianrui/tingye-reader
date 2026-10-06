@@ -144,7 +144,8 @@ export default function ReadingChart({
                   ? 0
                   : Math.max(2, (d.seconds / stats.maxSeconds) * innerHeight);
               const y = TOP_PADDING + innerHeight - barHeight;
-              const fill = d.isToday ? theme.colors.primary : theme.colors.primaryContainer;
+              // Ink for past days, cinnabar for today (both clear 3:1 against paper).
+              const fill = d.isToday ? theme.colors.tertiary : theme.colors.secondary;
               return (
                 <G key={`bar-${d.index}`}>
                   <Rect
@@ -189,7 +190,7 @@ export default function ReadingChart({
           <View
             style={[
               styles.legendDot,
-              { backgroundColor: theme.colors.primary },
+              { backgroundColor: theme.colors.tertiary },
             ]}
           />
           <Text style={[styles.legendText, { color: theme.colors.onSurfaceVariant }]}>
@@ -200,7 +201,7 @@ export default function ReadingChart({
           <View
             style={[
               styles.legendDot,
-              { backgroundColor: theme.colors.primaryContainer },
+              { backgroundColor: theme.colors.secondary },
             ]}
           />
           <Text style={[styles.legendText, { color: theme.colors.onSurfaceVariant }]}>
@@ -283,8 +284,8 @@ function niceUpperBound(seconds: number): number {
 const styles = StyleSheet.create({
   toggle: {
     flexDirection: 'row',
-    padding: 4,
-    borderRadius: shapeTokens.full,
+    padding: 3,
+    borderRadius: shapeTokens.extraSmall,
     borderWidth: 1,
     marginBottom: spacingTokens.md,
     alignSelf: 'flex-start',
@@ -292,7 +293,7 @@ const styles = StyleSheet.create({
   toggleOption: {
     paddingHorizontal: spacingTokens.md,
     height: 32,
-    borderRadius: shapeTokens.full,
+    borderRadius: shapeTokens.extraSmall,
     justifyContent: 'center',
   },
   toggleLabel: {

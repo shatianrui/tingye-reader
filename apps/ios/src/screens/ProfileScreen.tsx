@@ -11,6 +11,7 @@ import ThemeSwitcher from '../components/ThemeSwitcher';
 import ReadingChart, { type ReadingChartRange } from '../components/ReadingChart';
 import { useAppTheme } from '../theme/useAppTheme';
 import { spacing as spacingTokens, brand } from '../theme/tokens';
+import { Seal } from '../components/Ink';
 
 function StatItem({ label, value, valueColor, labelColor }: { label: string; value: string; valueColor: string; labelColor: string }) {
   return (
@@ -93,21 +94,19 @@ export default function ProfileScreen() {
           paddingBottom: insets.bottom + FLOATING_TAB_BAR_SPACE,
         }}
       >
-        <View style={[styles.profileCard, { backgroundColor: theme.colors.inverseSurface }]}>
+        <View style={[styles.profileCard, { borderTopColor: theme.colors.onSurface, borderBottomColor: theme.colors.outlineVariant }]}>
           <View style={styles.profileHeader}>
-            <View style={[styles.avatar, { borderColor: brand.gold, backgroundColor: theme.scheme === 'dark' ? 'rgba(28,28,30,0.12)' : 'rgba(255,255,255,0.14)' }]}>
-              <Text style={[styles.avatarText, { color: theme.colors.inverseOnSurface }]}>{(ui.username||'读').slice(0,1).toUpperCase()}</Text>
-            </View>
+            <Seal char={(ui.username||'读').slice(0,1).toUpperCase()} size={56} color={theme.colors.tertiary} ink={theme.colors.onTertiary} />
             <View style={styles.profileInfo}>
-              <Text numberOfLines={1} style={[styles.username, { color: theme.colors.inverseOnSurface }]}>{ui.username}</Text>
-              <Text style={[styles.userHandle, { color: theme.colors.inverseOnSurface }]}>继续每天 15 分钟，养成阅读习惯</Text>
+              <Text numberOfLines={1} style={[styles.username, { color: theme.colors.onSurface }]}>{ui.username}</Text>
+              <Text style={[styles.userHandle, { color: theme.colors.onSurfaceVariant }]}>继续每天 15 分钟，养成阅读习惯</Text>
             </View>
           </View>
-          <View style={[styles.statsRow, { borderTopColor: theme.scheme === 'dark' ? 'rgba(28,28,30,0.18)' : 'rgba(255,255,255,0.2)' }]}>
-            <StatItem label="累计阅读" value={formatMinutes(total)} valueColor={brand.gold} labelColor={theme.colors.inverseOnSurface} />
-            <StatItem label="今日" value={formatMinutes(today)} valueColor={brand.gold} labelColor={theme.colors.inverseOnSurface} />
-            <StatItem label="阅读天数" value={`${days}`} valueColor={brand.gold} labelColor={theme.colors.inverseOnSurface} />
-            <StatItem label="藏书" value={`${notes}`} valueColor={brand.gold} labelColor={theme.colors.inverseOnSurface} />
+          <View style={[styles.statsRow, { borderTopColor: theme.colors.outlineVariant }]}>
+            <StatItem label="累计阅读" value={formatMinutes(total)} valueColor={theme.colors.onSurface} labelColor={theme.colors.onSurfaceVariant} />
+            <StatItem label="今日" value={formatMinutes(today)} valueColor={theme.colors.tertiary} labelColor={theme.colors.onSurfaceVariant} />
+            <StatItem label="阅读天数" value={`${days}`} valueColor={theme.colors.onSurface} labelColor={theme.colors.onSurfaceVariant} />
+            <StatItem label="藏书" value={`${notes}`} valueColor={theme.colors.onSurface} labelColor={theme.colors.onSurfaceVariant} />
           </View>
         </View>
 
@@ -122,7 +121,7 @@ export default function ProfileScreen() {
         <View
           style={[
             styles.chartCard,
-            { backgroundColor: theme.colors.surfaceContainerLow },
+            { backgroundColor: theme.colors.surfaceContainerLow, borderColor: theme.colors.outlineVariant },
           ]}
         >
           <ReadingChart
@@ -145,7 +144,7 @@ export default function ProfileScreen() {
         <View
           style={[
             styles.tileGroup,
-            { backgroundColor: theme.colors.surfaceContainerLow },
+            { backgroundColor: theme.colors.surfaceContainerLow, borderColor: theme.colors.outlineVariant },
           ]}
         >
           <ThemeSwitcher layout="list" />
@@ -162,7 +161,7 @@ export default function ProfileScreen() {
         <View
           style={[
             styles.tileGroup,
-            { backgroundColor: theme.colors.surfaceContainerLow },
+            { backgroundColor: theme.colors.surfaceContainerLow, borderColor: theme.colors.outlineVariant },
           ]}
         >
           {([
@@ -188,8 +187,8 @@ export default function ProfileScreen() {
               ]}
               accessibilityRole="button"
             >
-              <View style={[styles.tileIcon, { backgroundColor: theme.colors.primaryContainer }]}>
-                <Icon name={item.icon} size={18} color={theme.colors.primary} />
+              <View style={[styles.tileIcon, { borderColor: theme.colors.outline }]}>
+                <Icon name={item.icon} size={18} color={theme.colors.onSurface} strokeWidth={1.6} />
               </View>
               <Text style={[styles.tileText, { color: theme.colors.onSurface }]}>
                 {item.label}
@@ -214,22 +213,20 @@ export default function ProfileScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  profileCard: { borderRadius: 20, padding: 20, marginTop: 4, overflow: 'hidden' },
+  profileCard: { paddingVertical: 16, marginTop: 4, borderTopWidth: 1, borderBottomWidth: StyleSheet.hairlineWidth },
   profileHeader: { flexDirection: 'row', alignItems: 'center' },
-  avatar: { width: 60, height: 60, borderRadius: 30, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5 },
-  avatarText: { fontFamily: brand.serif, fontSize: 26, fontWeight: '700' },
   profileInfo: { flex: 1, marginLeft: spacingTokens.lg },
   username: { fontFamily: brand.serif, fontSize: 20, fontWeight: '700' },
-  userHandle: { fontSize: 12, marginTop: spacingTokens.xs, opacity: 0.7 },
+  userHandle: { fontSize: 12, marginTop: spacingTokens.xs },
   statsRow: { flexDirection: 'row', marginTop: 20, paddingTop: 16, borderTopWidth: StyleSheet.hairlineWidth },
   statItem: { flex: 1, alignItems: 'center', paddingHorizontal: 2 },
-  statValue: { fontSize: 15, fontWeight: '700' },
-  statLabel: { fontSize: 11, marginTop: 4, opacity: 0.65 },
-  sectionLabel: { fontSize: 15, fontWeight: '700', marginTop: spacingTokens.xl, marginBottom: spacingTokens.sm, paddingHorizontal: spacingTokens.xs },
-  chartCard: { borderRadius: 16, paddingHorizontal: spacingTokens.lg, paddingVertical: spacingTokens.lg },
-  tileGroup: { borderRadius: 16, overflow: 'hidden' },
+  statValue: { fontSize: 16, fontWeight: '700' },
+  statLabel: { fontSize: 11, marginTop: 4, letterSpacing: 1 },
+  sectionLabel: { fontFamily: brand.brush, fontSize: 22, lineHeight: 28, marginTop: spacingTokens.xl, marginBottom: spacingTokens.sm, paddingHorizontal: spacingTokens.xs },
+  chartCard: { borderRadius: 2, borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: spacingTokens.lg, paddingVertical: spacingTokens.lg },
+  tileGroup: { borderRadius: 2, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
   tile: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacingTokens.lg, paddingVertical: 12 },
-  tileIcon: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  tileIcon: { width: 34, height: 34, borderRadius: 2, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'center' },
   tileText: { flex: 1, marginLeft: spacingTokens.md, fontSize: 15, fontWeight: '500' },
   versionLabel: { fontSize: 12, textAlign: 'center', marginTop: spacingTokens.xl },
 });

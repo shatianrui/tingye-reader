@@ -18,7 +18,7 @@ export default function CloudConnection({colors}:{colors:ReadingTheme}) {
   } catch(error) {setMessage(error instanceof Error?error.message:'连接失败，请重试。');}
   finally {setChecking(false);}
  };
- return <View style={{padding:18,gap:10,backgroundColor:colors.surface,borderColor:colors.line,borderWidth:1,borderRadius:18}}>
+ return <View style={{padding:18,gap:10,backgroundColor:colors.surface,borderColor:colors.line,borderWidth:1,borderRadius:2}}>
   <Text style={{fontSize:15,fontWeight:'600',color:colors.text}}>听页云端 · Vercel</Text>
   <Text selectable style={{fontSize:13,color:colors.accent}}>{ORIGIN.replace('https://','')}</Text>
   <Text accessibilityLiveRegion="polite" style={{fontSize:13,lineHeight:20,color:colors.muted}}>{message}</Text>
