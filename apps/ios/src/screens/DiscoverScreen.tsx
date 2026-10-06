@@ -254,7 +254,7 @@ function HeroSlide({
       <BookCover book={book} width={84} height={116} />
       <View style={styles.heroInfo}>
         <Text
-          style={[styles.heroOverline, { color: brand.gold }]}
+          style={[styles.heroOverline, { color: theme.scheme === 'dark' ? brand.cinnabar : brand.cinnabarBright }]}
           numberOfLines={1}
         >
           今日推荐
@@ -403,7 +403,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     marginHorizontal: spacingTokens.lg,
     padding: spacingTokens.lg + 2,
-    borderRadius: 26,
+    borderRadius: 4,
     overflow: 'hidden',
   },
   heroInfo: {
@@ -419,10 +419,9 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
   },
   heroTitle: {
-    fontFamily: brand.serif,
-    fontSize: 20,
-    fontWeight: '700',
-    lineHeight: 26,
+    fontFamily: brand.brush,
+    fontSize: 26,
+    lineHeight: 32,
   },
   heroAuthor: {
     fontSize: 12,
@@ -443,7 +442,7 @@ const styles = StyleSheet.create({
   rankingCard: {
     width: 180,
     padding: spacingTokens.lg,
-    borderRadius: 20,
+    borderRadius: 2,
     borderWidth: StyleSheet.hairlineWidth,
   },
   rankingTitle: {
@@ -460,7 +459,7 @@ const styles = StyleSheet.create({
   rankingBadge: {
     width: 22,
     height: 22,
-    borderRadius: 11,
+    borderRadius: 2,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: spacingTokens.sm,
@@ -479,11 +478,11 @@ const styles = StyleSheet.create({
     paddingVertical: spacingTokens.sm,
     gap: 8,
   },
-  chip: { height: 34, paddingHorizontal: 16, borderRadius: 17, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  chip: { height: 36, paddingHorizontal: 16, borderRadius: 2, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   sectionTitle: {
-    fontFamily: brand.serif,
-    fontSize: 19,
-    fontWeight: '700',
+    fontFamily: brand.brush,
+    fontSize: 24,
+    lineHeight: 30,
     marginTop: spacingTokens.md,
     marginBottom: spacingTokens.sm,
     paddingHorizontal: spacingTokens.lg,

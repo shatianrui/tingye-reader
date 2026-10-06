@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { DisplayText as Text } from './DisplayText';
 import Icon, { type IconName } from './Icon';
 import { useAppTheme } from '../theme/useAppTheme';
+import { brand } from '../theme/tokens';
 
 export type HeaderAction = { icon: IconName; label: string; onPress: () => void; disabled?: boolean };
 
@@ -11,13 +12,13 @@ export function RoundButton({ icon, label, onPress, disabled }: HeaderAction) {
   const theme = useAppTheme();
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled: !!disabled }} disabled={disabled} onPress={onPress} hitSlop={6}
-      style={({ pressed }) => [styles.round, { backgroundColor: theme.colors.surfaceContainerLow, borderColor: theme.colors.outlineVariant }, (pressed || disabled) && { opacity: 0.55 }]}>
-      <Icon name={icon} size={20} color={theme.colors.onSurface} />
+      style={({ pressed }) => [styles.round, { borderColor: theme.colors.outline }, (pressed || disabled) && { opacity: 0.55 }]}>
+      <Icon name={icon} size={20} color={theme.colors.onSurface} strokeWidth={1.6} />
     </Pressable>
   );
 }
 
-/** Large page title with circular actions (书架 / 发现 / 我). */
+/** Brush-written page title with ink-outlined circular actions (书架 / 发现 / 我). */
 export default function ScreenHeader({ title, subtitle, actions = [] }: { title: string; subtitle?: string; actions?: HeaderAction[] }) {
   const theme = useAppTheme();
   const insets = useSafeAreaInsets();
@@ -34,8 +35,8 @@ export default function ScreenHeader({ title, subtitle, actions = [] }: { title:
 
 const styles = StyleSheet.create({
   wrap: { flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 20, paddingBottom: 14, width: '100%', maxWidth: 1100, alignSelf: 'center' },
-  title: { fontSize: 30, fontWeight: '700', letterSpacing: 0.2 },
-  subtitle: { fontSize: 13, marginTop: 4 },
+  title: { fontFamily: brand.brush, fontSize: 40, lineHeight: 50 },
+  subtitle: { fontSize: 12, marginTop: 2, letterSpacing: 1.5 },
   actions: { flexDirection: 'row', gap: 10, marginBottom: 4 },
-  round: { width: 40, height: 40, borderRadius: 20, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'center' },
+  round: { width: 44, height: 44, borderRadius: 22, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
 });

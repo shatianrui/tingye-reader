@@ -210,7 +210,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     height: 40,
-    borderRadius: shapeTokens.full,
+    borderRadius: shapeTokens.extraSmall,
     paddingHorizontal: spacingTokens.md,
   },
   searchIcon: {
@@ -259,7 +259,7 @@ const styles = StyleSheet.create({
   emptyMark: {
     width: 72,
     height: 72,
-    borderRadius: 36,
+    borderRadius: 4,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: spacingTokens.lg,
@@ -290,7 +290,7 @@ const styles = StyleSheet.create({
   seedChip: {
     paddingHorizontal: spacingTokens.md,
     paddingVertical: spacingTokens.sm,
-    borderRadius: shapeTokens.full,
+    borderRadius: shapeTokens.extraSmall,
     borderWidth: 1,
     marginBottom: spacingTokens.sm,
     alignSelf: 'flex-start',

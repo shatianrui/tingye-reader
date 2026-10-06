@@ -139,8 +139,8 @@ export default function ThemeSwitcher({ layout = 'segmented' }: ThemeSwitcherPro
 const styles = StyleSheet.create({
   segmented: {
     flexDirection: 'row',
-    padding: 4,
-    borderRadius: shapeTokens.full,
+    padding: 3,
+    borderRadius: shapeTokens.extraSmall,
     borderWidth: 1,
   },
   segment: {
@@ -149,7 +149,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     height: 40,
-    borderRadius: shapeTokens.full,
+    borderRadius: shapeTokens.extraSmall,
     paddingHorizontal: spacingTokens.md,
   },
   segmentIcon: {
