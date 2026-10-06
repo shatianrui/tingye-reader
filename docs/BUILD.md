@@ -30,8 +30,10 @@ iOS IPA 由 GitHub Actions 的 `Build unsigned iOS IPA` 工作流在 GitHub macO
 Runner 上调用 CocoaPods 与 Xcode 构建，不使用 EAS 云构建。工作流先执行类型
 检查、完整测试和真实 WebView 阅读器测试，再归档未签名的 iOS 真机 app，
 将其打包为 `*-unsigned.ipa`，校验版本、Bundle ID、arm64 架构、无签名及
-归档完整性，并上传 IPA 与 SHA-256 为 Actions Artifact。无须 Apple 证书或
-GitHub Secrets。构建使用 Xcode 26.3，并对已安装的 `expo-modules-jsi`
+归档完整性，并上传 IPA 与 SHA-256 为 Actions Artifact；归档中的 dSYM 另存为
+`*-dSYMs` Artifact，用于符号化侧载安装后的崩溃日志。无须 Apple 证书或
+GitHub Secrets。apps/ios/package-lock.json 统一从 registry.npmjs.org 解析，
+GitHub Runner 不依赖国内镜像；本机使用镜像可在 npm 配置中设置，勿提交改写后的锁文件。构建使用 Xcode 26.3，并对已安装的 `expo-modules-jsi`
 执行限定到 `RuntimeScheduler` 构造函数和七处同步 JSI 指针捕获的编译器兼容修补。
 后者复用依赖已有的 `NonisolatedUnsafeVar`，保留 JavaScriptActor 的运行线程检查及
 原指针所有权，处理 [Expo #50067](https://github.com/expo/expo/issues/50067) 描述的

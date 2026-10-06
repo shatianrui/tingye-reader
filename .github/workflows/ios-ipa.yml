@@ -8,6 +8,7 @@ on:
       - deploy/tencent-cloud
     paths:
       - apps/ios/**
+      - tools/tests/xcode-compat.cjs
       - .github/workflows/ios-ipa.yml
 
 permissions:
@@ -20,29 +21,38 @@ concurrency:
 jobs:
   build:
     runs-on: macos-15
+    timeout-minutes: 45
     outputs:
       version: ${{ steps.release.outputs.version }}
       build_number: ${{ steps.release.outputs.build_number }}
       file: ${{ steps.release.outputs.file }}
+      dsyms: ${{ steps.release.outputs.dsyms }}
     defaults:
       run:
         working-directory: apps/ios
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: '22'
           cache: npm
           cache-dependency-path: apps/ios/package-lock.json
       - name: Select Xcode with Swift 6.2
         run: |
-          echo "DEVELOPER_DIR=/Applications/Xcode_26.3.app/Contents/Developer" >> "$GITHUB_ENV"
-          DEVELOPER_DIR=/Applications/Xcode_26.3.app/Contents/Developer xcodebuild -version
+          developer_dir=/Applications/Xcode_26.3.app/Contents/Developer
+          if [ ! -d "$developer_dir" ]; then
+            echo "::error::Xcode 26.3 is not installed on this runner image. Available: $(ls -d /Applications/Xcode_* | xargs -n1 basename | tr '\n' ' ')"
+            exit 1
+          fi
+          echo "DEVELOPER_DIR=$developer_dir" >> "$GITHUB_ENV"
+          DEVELOPER_DIR=$developer_dir xcodebuild -version
       - run: npm ci
+      # Regenerate the WebView reader runtime before testing, so the tests cover
+      # exactly the scripts that get bundled into the app.
+      - run: npm run build:reader
       - run: npm run typecheck
       - run: npm test
       - run: npm run test:reader
-      - run: npm run build:reader
       - run: npm run prepare:native
       - name: Apply Xcode 26 JSI compatibility fix
         run: node tools/patch-jsi-bridging.cjs
@@ -56,15 +66,24 @@ jobs:
         run: |
           workspace=$(find ios -maxdepth 1 -name '*.xcworkspace' -print -quit)
           test -n "$workspace" || { echo "::error::CocoaPods Xcode workspace was not generated"; exit 1; }
-          scheme=$(xcodebuild -workspace "$workspace" -list -json | python3 -c 'import json,sys; print(json.load(sys.stdin)["workspace"]["schemes"][0])')
+          # Expo names the app scheme after its workspace; Pods schemes may sort before it.
+          schemes=$(xcodebuild -workspace "$workspace" -list -json)
+          scheme=$(basename "$workspace" .xcworkspace)
+          if ! printf '%s' "$schemes" | python3 -c 'import json,sys; sys.exit(sys.argv[1] not in json.load(sys.stdin)["workspace"]["schemes"])' "$scheme"; then
+            echo "::error::App scheme '$scheme' not found in $workspace"
+            exit 1
+          fi
           archive="$RUNNER_TEMP/Tingye.xcarchive"
+          # -quiet keeps only warnings and errors in the log; indexing is useless in CI.
           xcodebuild archive \
+            -quiet \
             -workspace "$workspace" \
             -scheme "$scheme" \
             -configuration Release \
             -destination 'generic/platform=iOS' \
             -archivePath "$archive" \
-            CODE_SIGNING_ALLOWED=NO
+            CODE_SIGNING_ALLOWED=NO \
+            COMPILER_INDEX_STORE_ENABLE=NO
           app=$(find "$archive/Products/Applications" -maxdepth 1 -name '*.app' -print -quit)
           test -n "$app" || { echo "::error::Device archive contains no app"; exit 1; }
           info="$app/Info.plist"
@@ -88,17 +107,33 @@ jobs:
           unzip -tq "$file"
           shasum -a 256 "$file" | tee "$file.sha256"
           echo "IPA \`$file\`: $(du -h "$file" | cut -f1)" >> "$GITHUB_STEP_SUMMARY"
+          # Debug symbols let crash logs from sideloaded installs be symbolicated.
+          dsyms=""
+          if [ -n "$(find "$archive/dSYMs" -maxdepth 1 -name '*.dSYM' -print -quit 2>/dev/null)" ]; then
+            dsyms="tingye-ios-${version}-build${build_number}-dSYMs.zip"
+            (cd "$archive" && zip -qry "$GITHUB_WORKSPACE/apps/ios/$dsyms" dSYMs)
+          else
+            echo "::warning::Archive contains no dSYMs"
+          fi
           {
             echo "version=$version"
             echo "build_number=$build_number"
             echo "file=$file"
+            echo "dsyms=$dsyms"
           } >> "$GITHUB_OUTPUT"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: tingye-ios-${{ steps.release.outputs.version }}-build${{ steps.release.outputs.build_number }}-unsigned
           path: |
             apps/ios/${{ steps.release.outputs.file }}
             apps/ios/${{ steps.release.outputs.file }}.sha256
+          if-no-files-found: error
+          retention-days: 30
+      - if: steps.release.outputs.dsyms != ''
+        uses: actions/upload-artifact@v6
+        with:
+          name: tingye-ios-${{ steps.release.outputs.version }}-build${{ steps.release.outputs.build_number }}-dSYMs
+          path: apps/ios/${{ steps.release.outputs.dsyms }}
           if-no-files-found: error
           retention-days: 30
   # Workflow artifacts always download as .zip; release assets download as the raw .ipa.
@@ -107,10 +142,11 @@ jobs:
     needs: build
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           name: tingye-ios-${{ needs.build.outputs.version }}-build${{ needs.build.outputs.build_number }}-unsigned
       - name: Publish IPA to GitHub Release
@@ -122,11 +158,13 @@ jobs:
           FILE: ${{ needs.build.outputs.file }}
         shell: bash
         run: |
+          sha256sum -c "$FILE.sha256"
           tag="ios-v${VERSION}-build${BUILD_NUMBER}"
           # A release belongs to one commit: re-runs of that commit replace its assets,
           # a later commit without a version bump gets its own commit-suffixed release.
           if gh release view "$tag" >/dev/null 2>&1; then
             if [ "$(gh api "repos/${GH_REPO}/commits/${tag}" --jq .sha)" != "$GITHUB_SHA" ]; then
+              echo "::warning::${tag} already belongs to another commit; bump expo.ios.buildNumber in apps/ios/app.json for a new build."
               tag="${tag}-${GITHUB_SHA::7}"
             fi
           fi
@@ -136,6 +174,6 @@ jobs:
             gh release create "$tag" "$FILE" "$FILE.sha256" \
               --target "$GITHUB_SHA" \
               --title "听页 iOS ${VERSION} (${BUILD_NUMBER})" \
-              --notes "未签名 IPA（${GITHUB_SHA::7}）。需用自己的证书签名后安装，例如 AltStore / Sideloadly。"
+              --notes "未签名 IPA（${GITHUB_SHA::7}），SHA-256 \`$(cut -d' ' -f1 "$FILE.sha256")\`。需用自己的证书签名后安装，例如 AltStore / Sideloadly。"
           fi
           echo "Release: https://github.com/${GH_REPO}/releases/tag/${tag}" >> "$GITHUB_STEP_SUMMARY"
