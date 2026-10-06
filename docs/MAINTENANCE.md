@@ -24,6 +24,8 @@ web/scripts/verify-*-live.* 是显式运行的在线验证，跨端脚本会创�
 
 ## 发布记录
 
+Windows 1.10.0 首次发布：`apps/desktop` 以 Electron 运行 iOS 的同一套界面。用户文件与界面资源都通过 `tingye://` 协议提供（`tingye://data` 仅能读写用户数据目录），书页在沙盒 iframe 中渲染，由主进程注入 react-native-webview 桥并把 `tingye:` 加入书页 CSP；网络请求经主进程转发，云端无需 CORS。修改 iOS 中的原生调用（expo-file-system、expo-audio、OriginalReader 的注入格式、书页 nonce 等）时，同步检查 `apps/desktop/src/shims` 并运行 `npm test` 与 `npm run test:e2e`。
+
 iOS 1.10.0 / 48 改为水墨风界面：外壳配色（`src/theme/tokens.ts`）为宣纸底、浓淡墨和单一朱砂点缀，圆角收为直角；标题与印章使用随包的马善政毛笔字（`InkBrush`，OFL，许可证见 `assets/fonts/MaShanZheng-OFL.txt` 与应用内开源字体许可）。阅读纸色去掉绿色，`src/tingye/themes.ts` 保留原主题 id（如 sage 现为烟雨、forest 现为夜墨），已保存的偏好无需迁移。无封面书籍改为线装书题签封面；装饰元素在 `src/components/Ink.tsx`。电纸书模式的样式与对比度不变。
 
 iOS 1.9.2 / 44 将朗读高亮通过独立订阅直接发送至 WebView，先于普通界面状态通知；同一句内的字位置不再触发整个阅读界面渲染。同页内不逐字回传页面事件，停止时回传最终位置；EPUB / PDF 复用未改变的整句高亮，原生音频位置采样为 50ms。`tests/playback-bridge.cjs` 覆盖三个引擎的 1.5 倍速模拟事件、暂停恢复及章节隔离，`test:reader` 覆盖逐字更新无页面反馈循环和停止位置保存。GLM 缺失实际时间戳时仍为明确标注的进度估算；这些检查不能替代 iPhone 上的声音与画面同步验收。

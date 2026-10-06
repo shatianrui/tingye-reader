@@ -1,0 +1,150 @@
+name: Build Windows app
+
+on:
+  workflow_dispatch:
+    inputs:
+      release:
+        description: Publish the installer to a GitHub Release (a prerelease when not run from main)
+        type: boolean
+        default: false
+  push:
+    branches:
+      - main
+    paths:
+      - apps/desktop/**
+      - apps/ios/App.tsx
+      - apps/ios/app.json
+      - apps/ios/package-lock.json
+      - apps/ios/assets/**
+      - apps/ios/src/**
+      - .github/workflows/windows-app.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-app-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    outputs:
+      version: ${{ steps.package.outputs.version }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: |
+            apps/ios/package-lock.json
+            apps/desktop/package-lock.json
+      # The desktop renderer bundles the iOS app source and its dependencies.
+      - run: npm ci
+        working-directory: apps/ios
+      - run: npm run build:reader
+        working-directory: apps/ios
+      - run: npm ci
+        working-directory: apps/desktop
+      - run: npm test
+        working-directory: apps/desktop
+      - run: npm run test:e2e
+        working-directory: apps/desktop
+      - name: Build installer and portable executable
+        working-directory: apps/desktop
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: npm run dist:win
+      - name: Checksums
+        id: package
+        working-directory: apps/desktop/release
+        run: |
+          version=$(node -p "require('../package.json').version")
+          setup="Tingye-Setup-${version}-x64.exe"
+          portable="Tingye-${version}-x64-portable.exe"
+          test -f "$setup" && test -f "$portable"
+          sha256sum "$setup" > "$setup.sha256"
+          sha256sum "$portable" > "$portable.sha256"
+          cat ./*.sha256
+          {
+            echo "Windows \`$setup\`: $(du -h "$setup" | cut -f1)"
+            echo
+            echo "Windows \`$portable\`: $(du -h "$portable" | cut -f1)"
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v6
+        with:
+          name: tingye-windows-${{ steps.package.outputs.version }}
+          path: |
+            apps/desktop/release/*.exe
+            apps/desktop/release/*.exe.sha256
+          if-no-files-found: error
+          retention-days: 30
+      - if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: tingye-windows-e2e-screenshots
+          path: apps/desktop/.e2e/*.png
+          if-no-files-found: ignore
+          retention-days: 7
+  # Only this job gets a write token, and it runs no repository code.
+  # Pushes to main always publish; a manual run publishes only when asked to.
+  publish:
+    needs: build
+    if: github.ref == 'refs/heads/main' || inputs.release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          name: tingye-windows-${{ needs.build.outputs.version }}
+      - name: Publish to GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ needs.build.outputs.version }}
+          REF_NAME: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          setup="Tingye-Setup-${VERSION}-x64.exe"
+          portable="Tingye-${VERSION}-x64-portable.exe"
+          sha256sum -c "$setup.sha256" "$portable.sha256"
+          tag="windows-v${VERSION}"
+          # A release belongs to one commit: re-runs of that commit replace its assets,
+          # a later commit without a version bump gets its own commit-suffixed release.
+          if gh release view "$tag" >/dev/null 2>&1; then
+            if [ "$(gh api "repos/${GH_REPO}/commits/${tag}" --jq .sha)" != "$GITHUB_SHA" ]; then
+              echo "::warning::${tag} already belongs to another commit; bump the version in apps/ios/app.json and apps/desktop/package.json for a new release."
+              tag="${tag}-${GITHUB_SHA::7}"
+            fi
+          fi
+          # Builds from other branches are marked prerelease so they never become "Latest".
+          extra=()
+          source_note=""
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            extra+=(--prerelease)
+            source_note="来自 ${REF_NAME} 分支，尚未合并到 main。"
+          fi
+          notes="${source_note}听页 Windows ${VERSION}（${GITHUB_SHA::7}），与 iOS ${VERSION} 同一套水墨界面与阅读引擎。
+
+          - \`${setup}\`：安装版（可选择安装目录），SHA-256 \`$(cut -d' ' -f1 "$setup.sha256")\`
+          - \`${portable}\`：免安装便携版，SHA-256 \`$(cut -d' ' -f1 "$portable.sha256")\`
+
+          安装包未做代码签名，首次运行时 Windows SmartScreen 可能提示“已保护你的电脑”，点击“更多信息 → 仍要运行”即可。需要 Windows 10 / 11 64 位。"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" "$setup" "$setup.sha256" "$portable" "$portable.sha256" --clobber
+          else
+            gh release create "$tag" "$setup" "$setup.sha256" "$portable" "$portable.sha256" \
+              --target "$GITHUB_SHA" \
+              --title "听页 Windows ${VERSION}" \
+              --notes "$notes" \
+              "${extra[@]}"
+          fi
+          echo "Release: https://github.com/${GH_REPO}/releases/tag/${tag}" >> "$GITHUB_STEP_SUMMARY"
