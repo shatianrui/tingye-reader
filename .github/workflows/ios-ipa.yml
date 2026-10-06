@@ -2,6 +2,11 @@ name: Build unsigned iOS IPA
 
 on:
   workflow_dispatch:
+    inputs:
+      release:
+        description: Publish the IPA to a GitHub Release (a prerelease when not run from main)
+        type: boolean
+        default: false
   push:
     branches:
       - main
@@ -138,9 +143,10 @@ jobs:
           retention-days: 30
   # Workflow artifacts always download as .zip; release assets download as the raw .ipa.
   # Only this job gets a write token, and it runs no repository code.
+  # Pushes to main always publish; a manual run publishes only when asked to.
   publish:
     needs: build
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' || inputs.release
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -156,6 +162,7 @@ jobs:
           VERSION: ${{ needs.build.outputs.version }}
           BUILD_NUMBER: ${{ needs.build.outputs.build_number }}
           FILE: ${{ needs.build.outputs.file }}
+          REF_NAME: ${{ github.ref_name }}
         shell: bash
         run: |
           sha256sum -c "$FILE.sha256"
@@ -168,12 +175,20 @@ jobs:
               tag="${tag}-${GITHUB_SHA::7}"
             fi
           fi
+          # Builds from other branches are marked prerelease so they never become "Latest".
+          extra=()
+          source_note=""
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            extra+=(--prerelease)
+            source_note="来自 ${REF_NAME} 分支，尚未合并到 main。"
+          fi
           if gh release view "$tag" >/dev/null 2>&1; then
             gh release upload "$tag" "$FILE" "$FILE.sha256" --clobber
           else
             gh release create "$tag" "$FILE" "$FILE.sha256" \
               --target "$GITHUB_SHA" \
               --title "听页 iOS ${VERSION} (${BUILD_NUMBER})" \
-              --notes "未签名 IPA（${GITHUB_SHA::7}），SHA-256 \`$(cut -d' ' -f1 "$FILE.sha256")\`。需用自己的证书签名后安装，例如 AltStore / Sideloadly。"
+              --notes "${source_note}未签名 IPA（${GITHUB_SHA::7}），SHA-256 \`$(cut -d' ' -f1 "$FILE.sha256")\`。需用自己的证书签名后安装，例如 AltStore / Sideloadly。" \
+              "${extra[@]}"
           fi
           echo "Release: https://github.com/${GH_REPO}/releases/tag/${tag}" >> "$GITHUB_STEP_SUMMARY"
