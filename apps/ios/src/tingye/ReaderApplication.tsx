@@ -218,11 +218,11 @@ export default function ReaderApplication({services=readerServices}:{services?:R
       onLayout={event=>{setPageHeight(event.nativeEvent.layout.height);setPageWidth(event.nativeEvent.layout.width);}}>
       <Pressable accessible={false} testID="reading-empty-space" onPress={toggleControls} style={StyleSheet.absoluteFill}/>
       {currentChapter&&pageWidth>0&&pageHeight>0&&<OriginalReader key={book.id+':'+chapter+':'+repairRevision} ref={originalReader} chapter={currentChapter} pdf={book.pdf} resources={book.resources} chapterIndex={chapter} config={readerConfig} initialOffset={activeRange?.start??0} onPage={paginationReady} onToggle={toggleControls} onPlay={play} onHideControls={()=>setControlsVisible(false)} onBoundary={crossChapter} onLink={followBookLink}/>}
-      {/* 沉浸态右下角的极小页码（pointerEvents 透传，不影响轻点显隐菜单） */}
-      {!layout.desktop&&<View pointerEvents="none" style={{position:'absolute',right:0,bottom:6}}>
-        <Text style={{fontSize:11,color:colors.muted,letterSpacing:.5}}>第 {chapter+1} / {book.chapters.length} 章 · {pageIndex+1} / {readerPage.count} 页</Text>
-      </View>}
     </View>
+    {/* 沉浸态右下角的极小页码：独占正文下方一条，正文分页高度随之扣除，避免压住最后一行；轻点同样显隐菜单 */}
+    {!layout.desktop&&<Pressable accessible={false} testID="reading-page-number" onPress={toggleControls} style={{height:22,width:layout.contentWidth,alignSelf:'center',alignItems:'flex-end',justifyContent:'center'}}>
+      <Text style={{fontSize:11,color:colors.muted,letterSpacing:.5}}>第 {chapter+1} / {book.chapters.length} 章 · {pageIndex+1} / {readerPage.count} 页</Text>
+    </Pressable>}
     {/* 悬浮「听」圆钮：菜单隐藏时常驻右下，菜单展开时隐藏避免与底栏重叠 */}
     {!layout.desktop&&!controlsVisible&&<View pointerEvents="box-none" style={{position:'absolute',right:16,bottom:40}}>
       <ListenFab colors={colors} player={player} onPress={play} onLongPress={openPlayer}/>
